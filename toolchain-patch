@@ -1,26 +1,74 @@
-From ceeb148861840c9bf97b387941706f4d407984c3 Mon Sep 17 00:00:00 2001
+From 672b5565c4293588924874070787be4e0928a503 Mon Sep 17 00:00:00 2001
 From: faux123 <reioux@gmail.com>
-Date: Fri, 28 Dec 2012 20:43:11 -0800
-Subject: [PATCH] cpufreq/ondemand: set default sampling rate to 50k for
- battery savings
+Date: Thu, 22 Nov 2012 07:28:42 -0800
+Subject: [PATCH] lib/string: use glibc version
 
+the performance of memcpy and memmove of the general version is very
+inefficient, this patch improved them.
+
+Signed-off-by: Miao Xie <miaox*******>
 Signed-off-by: faux123 <reioux@gmail.com>
 ---
- drivers/cpufreq/cpufreq_ondemand.c |    1 +
- 1 file changed, 1 insertion(+)
+ lib/string.c |   29 ++++++++++++-----------------
+ 1 file changed, 12 insertions(+), 17 deletions(-)
 
-diff --git a/drivers/cpufreq/cpufreq_ondemand.c b/drivers/cpufreq/cpufreq_ondemand.c
-index 6f20120..06e00b1 100644
---- a/drivers/cpufreq/cpufreq_ondemand.c
-+++ b/drivers/cpufreq/cpufreq_ondemand.c
-@@ -150,6 +150,7 @@ struct dbs_work_struct {
- 	.powersave_bias = 0,
- 	.sync_freq = DBS_SYNC_FREQ,
- 	.optimal_freq = DBS_OPTIMAL_FREQ,
-+	.sampling_rate = (MICRO_FREQUENCY_MIN_SAMPLE_RATE * 5)
- };
+diff --git a/lib/string.c b/lib/string.c
+index e5878de..070a3ed 100644
+--- a/lib/string.c
++++ b/lib/string.c
+@@ -26,6 +26,7 @@
+ #include <linux/export.h>
+ #include <linux/bug.h>
+ #include <linux/errno.h>
++#include <linux/memcopy.h>
  
- static inline u64 get_cpu_idle_time_jiffy(unsigned int cpu, u64 *wall)
+ #ifndef __HAVE_ARCH_STRNICMP
+ /**
+@@ -598,11 +599,11 @@ void *memset(void *s, int c, size_t count)
+  */
+ void *memcpy(void *dest, const void *src, size_t count)
+ {
+-	char *tmp = dest;
+-	const char *s = src;
++	unsigned long dstp = (unsigned long)dest; 
++	unsigned long srcp = (unsigned long)src; 
+ 
+-	while (count--)
+-		*tmp++ = *s++;
++	/* Copy from the beginning to the end */ 
++	mem_copy_fwd(dstp, srcp, count); 
+ 	return dest;
+ }
+ EXPORT_SYMBOL(memcpy);
+@@ -619,21 +620,15 @@ void *memcpy(void *dest, const void *src, size_t count)
+  */
+ void *memmove(void *dest, const void *src, size_t count)
+ {
+-	char *tmp;
+-	const char *s;
++	unsigned long dstp = (unsigned long)dest; 
++	unsigned long srcp = (unsigned long)src; 
+ 
+-	if (dest <= src) {
+-		tmp = dest;
+-		s = src;
+-		while (count--)
+-			*tmp++ = *s++;
++	if (dest - src >= count) { 
++		/* Copy from the beginning to the end */ 
++		mem_copy_fwd(dstp, srcp, count); 
+ 	} else {
+-		tmp = dest;
+-		tmp += count;
+-		s = src;
+-		s += count;
+-		while (count--)
+-			*--tmp = *--s;
++		/* Copy from the end to the beginning */ 
++		mem_copy_bwd(dstp, srcp, count); 
+ 	}
+ 	return dest;
+ }
 -- 
 1.7.10
 

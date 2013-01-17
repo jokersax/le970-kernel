@@ -76,11 +76,10 @@ static void check_temp(struct work_struct *work)
 		goto reschedule;
 	}
 
-//	if (temp >= msm_thermal_info.limit_temp)
-      if (temp >= 80)
+	if (temp >= msm_thermal_info.limit_temp)
 		max_freq = msm_thermal_info.limit_freq;
-//        else if (temp < msm_thermal_info.limit_temp - msm_thermal_info.temp_hysteresis)
-	else if (temp < 80)
+	else if (temp <
+		msm_thermal_info.limit_temp - msm_thermal_info.temp_hysteresis)
 		max_freq = MSM_CPUFREQ_NO_LIMIT;
 
 	if (max_freq == limited_max_freq)
