@@ -1,0 +1,10 @@
+--- build.sh
++++ build.sh
+@@ -47,5 +47,7 @@
+ fi
+ fi
+ 
++echo "3.0.21-sk8s-kernel-v3-BETA" > include/config/kernel.release
+ make $config
++make menuconfig
+ make -j9

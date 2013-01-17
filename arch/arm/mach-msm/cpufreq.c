@@ -354,7 +354,7 @@ static int msm_cpufreq_pm_event(struct notifier_block *this,
 	}
 }
 
-static struct freq_attr *msm_freq_attr[] = {
+static struct freq_attr *msm_cpufreq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
 	NULL,
 };
@@ -367,7 +367,7 @@ static struct cpufreq_driver msm_cpufreq_driver = {
 	.target		= msm_cpufreq_target,
 	.get		= msm_cpufreq_get_freq,
 	.name		= "msm",
-	.attr		= msm_freq_attr,
+	.attr		= msm_cpufreq_attr,
 };
 
 static struct notifier_block msm_cpufreq_pm_notifier = {
