@@ -1,21 +1,5 @@
-From 672b5565c4293588924874070787be4e0928a503 Mon Sep 17 00:00:00 2001
-From: faux123 <reioux@gmail.com>
-Date: Thu, 22 Nov 2012 07:28:42 -0800
-Subject: [PATCH] lib/string: use glibc version
-
-the performance of memcpy and memmove of the general version is very
-inefficient, this patch improved them.
-
-Signed-off-by: Miao Xie <miaox*******>
-Signed-off-by: faux123 <reioux@gmail.com>
----
- lib/string.c |   29 ++++++++++++-----------------
- 1 file changed, 12 insertions(+), 17 deletions(-)
-
-diff --git a/lib/string.c b/lib/string.c
-index e5878de..070a3ed 100644
---- a/lib/string.c
-+++ b/lib/string.c
+--- string.c
++++ string.c
 @@ -26,6 +26,7 @@
  #include <linux/export.h>
  #include <linux/bug.h>
@@ -24,7 +8,7 @@ index e5878de..070a3ed 100644
  
  #ifndef __HAVE_ARCH_STRNICMP
  /**
-@@ -598,11 +599,11 @@ void *memset(void *s, int c, size_t count)
+@@ -598,11 +599,11 @@
   */
  void *memcpy(void *dest, const void *src, size_t count)
  {
@@ -40,7 +24,7 @@ index e5878de..070a3ed 100644
  	return dest;
  }
  EXPORT_SYMBOL(memcpy);
-@@ -619,21 +620,15 @@ void *memcpy(void *dest, const void *src, size_t count)
+@@ -619,21 +620,15 @@
   */
  void *memmove(void *dest, const void *src, size_t count)
  {
@@ -69,7 +53,3 @@ index e5878de..070a3ed 100644
  	}
  	return dest;
  }
--- 
-1.7.10
-
-
