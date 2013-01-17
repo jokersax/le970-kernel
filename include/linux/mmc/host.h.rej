@@ -1,0 +1,10 @@
+--- include/linux/mmc/host.h
++++ include/linux/mmc/host.h
+@@ -347,6 +363,7 @@
+ 	struct dentry		*debugfs_root;
+ 
+ 	struct mmc_async_req	*areq;		/* active async req */
++	struct mmc_context_info	context_info;	/* async synchronization info */
+ 
+ #ifdef CONFIG_FAIL_MMC_REQUEST
+ 	struct fault_attr	fail_mmc_request;

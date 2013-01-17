@@ -1,0 +1,27 @@
+--- drivers/usb/host/ehci-msm-hsic.c
++++ drivers/usb/host/ehci-msm-hsic.c
+@@ -1522,6 +1522,8 @@
+ 		return  -ENOMEM;
+ 	}
+ 
++	hcd_to_bus(hcd)->skip_resume = true;
++
+ 	hcd->irq = platform_get_irq(pdev, 0);
+ 	if (hcd->irq < 0) {
+ 		dev_err(&pdev->dev, "Unable to get IRQ resource\n");
+@@ -1791,6 +1793,15 @@
+ 	if (device_may_wakeup(dev))
+ 		disable_irq_wake(hcd->irq);
+ 
++	/*
++	 * Keep HSIC in Low Power Mode if system is resumed
++	 * by any other wakeup source.  HSIC is resumed later
++	 * when remote wakeup is received or interface driver
++	 * start I/O.
++	 */
++	if (!atomic_read(&mehci->pm_usage_cnt))
++		return 0;
++
+ 	ret = msm_hsic_resume(mehci);
+ 	if (ret)
+ 		return ret;

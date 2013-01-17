@@ -1,0 +1,34 @@
+--- drivers/mmc/card/block.c
++++ drivers/mmc/card/block.c
+@@ -1353,8 +1342,11 @@
+ 		} else
+ 			areq = NULL;
+ 		areq = mmc_start_req(card->host, areq, (int *) &status);
+-		if (!areq)
++		if (!areq) {
++			if (status == MMC_BLK_NEW_REQUEST)
++				mq->flags |= MMC_QUEUE_NEW_REQUEST;
+ 			return 0;
++		}
+ 
+ 		mq_rq = container_of(areq, struct mmc_queue_req, mmc_active);
+ 		brq = &mq_rq->brq;
+@@ -1427,6 +1419,10 @@
+ 			break;
+ 		case MMC_BLK_NOMEDIUM:
+ 			goto cmd_abort;
++		default:
++			pr_err("%s: Unhandled return value (%d)",
++					req->rq_disk->disk_name, status);
++			goto cmd_abort;
+ 		}
+ 
+ 		if (ret) {
+@@ -1477,6 +1475,7 @@
+ 		goto out;
+ 	}
+ 
++	mq->flags &= ~MMC_QUEUE_NEW_REQUEST;
+ 	if (req && req->cmd_flags & REQ_DISCARD) {
+ 		/* complete ongoing async transfer before issuing discard */
+ 		if (card->host->areq)
