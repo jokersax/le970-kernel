@@ -1,16 +1,17 @@
 --- drivers/usb/host/ehci-msm-hsic.c
 +++ drivers/usb/host/ehci-msm-hsic.c
-@@ -1655,11 +1668,8 @@
+@@ -1610,6 +1657,14 @@
  
- 	init_completion(&mehci->rt_completion);
- 	init_completion(&mehci->gpt0_completion);
--	ret = msm_hsic_reset(mehci);
--	if (ret) {
--		dev_err(&pdev->dev, "unable to initialize PHY\n");
--		goto deinit_vddcx;
--	}
+ 	dev_dbg(&pdev->dev, "ehci_msm-hsic probe\n");
+ 
++	if (pdev->dev.of_node) {
++		dev_dbg(&pdev->dev, "device tree enabled\n");
++		pdev->dev.platform_data = msm_hsic_dt_to_pdata(pdev);
++		dev_set_name(&pdev->dev, ehci_msm_hsic_driver.driver.name);
++	}
++	if (!pdev->dev.platform_data)
++		dev_dbg(&pdev->dev, "No platform data given\n");
 +
-+	msm_hsic_phy_reset(mehci);
- 
- 	ehci_wq = create_singlethread_workqueue("ehci_wq");
- 	if (!ehci_wq) {
+ 	if (!pdev->dev.dma_mask)
+ 		pdev->dev.dma_mask = &ehci_msm_hsic_dma_mask;
+ 	if (!pdev->dev.coherent_dma_mask)
