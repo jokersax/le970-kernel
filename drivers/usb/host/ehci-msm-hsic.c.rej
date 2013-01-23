@@ -1,27 +1,16 @@
 --- drivers/usb/host/ehci-msm-hsic.c
 +++ drivers/usb/host/ehci-msm-hsic.c
-@@ -1522,6 +1522,8 @@
- 		return  -ENOMEM;
- 	}
+@@ -1655,11 +1668,8 @@
  
-+	hcd_to_bus(hcd)->skip_resume = true;
+ 	init_completion(&mehci->rt_completion);
+ 	init_completion(&mehci->gpt0_completion);
+-	ret = msm_hsic_reset(mehci);
+-	if (ret) {
+-		dev_err(&pdev->dev, "unable to initialize PHY\n");
+-		goto deinit_vddcx;
+-	}
 +
- 	hcd->irq = platform_get_irq(pdev, 0);
- 	if (hcd->irq < 0) {
- 		dev_err(&pdev->dev, "Unable to get IRQ resource\n");
-@@ -1791,6 +1793,15 @@
- 	if (device_may_wakeup(dev))
- 		disable_irq_wake(hcd->irq);
++	msm_hsic_phy_reset(mehci);
  
-+	/*
-+	 * Keep HSIC in Low Power Mode if system is resumed
-+	 * by any other wakeup source.  HSIC is resumed later
-+	 * when remote wakeup is received or interface driver
-+	 * start I/O.
-+	 */
-+	if (!atomic_read(&mehci->pm_usage_cnt))
-+		return 0;
-+
- 	ret = msm_hsic_resume(mehci);
- 	if (ret)
- 		return ret;
+ 	ehci_wq = create_singlethread_workqueue("ehci_wq");
+ 	if (!ehci_wq) {
