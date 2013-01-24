@@ -31,15 +31,12 @@
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 
-#include <linux/usb/ulpi.h>
 #include <linux/usb/msm_hsusb_hw.h>
 #include <linux/usb/msm_hsusb.h>
 #include <linux/gpio.h>
-#include <linux/of_gpio.h>
 #include <linux/spinlock.h>
 #include <linux/wait.h>
 
-static struct platform_driver ehci_msm_hsic_driver;
 
 #include <mach/msm_bus.h>
 #include <mach/clk.h>
@@ -587,20 +584,53 @@ static void msm_hsic_clk_reset(struct msm_hsic_hcd *mehci)
 {
 	int ret;
 
-	ret = clk_reset(mehci->core_clk, CLK_RESET_ASSERT);
-	if (ret) {
-		dev_err(mehci->dev, "hsic clk assert failed:%d\n", ret);
-		return;
+	/* alt_core_clk exists in targets that do not use asynchronous reset */
+	if (!IS_ERR(mehci->alt_core_clk)) {
+		ret = clk_reset(mehci->core_clk, CLK_RESET_ASSERT);
+		if (ret) {
+			dev_err(mehci->dev, "hsic clk assert failed:%d\n", ret);
+			return;
+		}
+
+		/* Since a hw bug, turn off the clock before complete reset */
+		clk_disable(mehci->core_clk);
+
+		ret = clk_reset(mehci->core_clk, CLK_RESET_DEASSERT);
+		if (ret)
+			dev_err(mehci->dev, "hsic clk deassert failed:%d\n",
+					ret);
+
+		usleep_range(10000, 12000);
+
+		clk_enable(mehci->core_clk);
+	} else {
+		/* Using asynchronous block reset to the hardware */
+		clk_disable_unprepare(mehci->core_clk);
+		clk_disable_unprepare(mehci->phy_clk);
+		clk_disable_unprepare(mehci->cal_clk);
+		clk_disable_unprepare(mehci->ahb_clk);
+
+		ret = clk_reset(mehci->core_clk, CLK_RESET_ASSERT);
+		if (ret) {
+			dev_err(mehci->dev, "hsic clk assert failed:%d\n", ret);
+			return;
+		}
+		usleep_range(10000, 12000);
+
+		ret = clk_reset(mehci->core_clk, CLK_RESET_DEASSERT);
+		if (ret)
+			dev_err(mehci->dev, "hsic clk deassert failed:%d\n",
+					ret);
+		/*
+		 * Required delay between the deassertion and
+		 *  clock enablement.
+		*/
+		ndelay(200);
+		clk_prepare_enable(mehci->core_clk);
+		clk_prepare_enable(mehci->phy_clk);
+		clk_prepare_enable(mehci->cal_clk);
+		clk_prepare_enable(mehci->ahb_clk);
 	}
-	clk_disable(mehci->core_clk);
-
-	ret = clk_reset(mehci->core_clk, CLK_RESET_DEASSERT);
-	if (ret)
-		dev_err(mehci->dev, "hsic clk deassert failed:%d\n", ret);
-
-	usleep_range(10000, 12000);
-
-	clk_enable(mehci->core_clk);
 }
 
 #define HSIC_STROBE_GPIO_PAD_CTL	(MSM_TLMM_BASE+0x20C0)
@@ -626,17 +656,15 @@ static int msm_hsic_start(struct msm_hsic_hcd *mehci)
 {
 	struct msm_hsic_host_platform_data *pdata = mehci->dev->platform_data;
 	int ret;
-	void __iomem *reg;
 
 	/* HSIC init sequence when HSIC signals (Strobe/Data) are
 	routed via GPIOs */
 	if (pdata && pdata->strobe && pdata->data) {
 
-		if (!pdata->ignore_cal_pad_config) {
-			/* Enable LV_MODE in HSIC_CAL_PAD_CTL register */
-			writel_relaxed(HSIC_LV_MODE, HSIC_CAL_PAD_CTL);
-			mb();
-		}
+		/* Enable LV_MODE in HSIC_CAL_PAD_CTL register */
+		writel_relaxed(HSIC_LV_MODE, HSIC_CAL_PAD_CTL);
+
+		mb();
 
 		/*set periodic calibration interval to ~2.048sec in
 		  HSIC_IO_CAL_REG */
@@ -651,25 +679,9 @@ static int msm_hsic_start(struct msm_hsic_hcd *mehci)
 			dev_err(mehci->dev, " gpio configuarion failed\n");
 			return ret;
 		}
-		if (pdata->strobe_pad_offset) {
-			/* Set CORE_CTL_EN in STROBE GPIO PAD_CTL register */
-			reg = MSM_TLMM_BASE + pdata->strobe_pad_offset;
-			writel_relaxed(readl_relaxed(reg) | 0x2000000, reg);
-		} else {
-			/* Set LV_MODE=0x1 and DCC=0x2 in STROBE GPIO PAD_CTL */
-			reg = HSIC_STROBE_GPIO_PAD_CTL;
-			writel_relaxed(HSIC_GPIO_PAD_VAL, reg);
-		}
-
-		if (pdata->data_pad_offset) {
-			/* Set CORE_CTL_EN in HSIC_DATA GPIO PAD_CTL register */
-			reg = MSM_TLMM_BASE + pdata->data_pad_offset;
-			writel_relaxed(readl_relaxed(reg) | 0x2000000, reg);
-		} else {
-			/* Set LV_MODE=0x1 and DCC=0x2 in STROBE GPIO PAD_CTL */
-			reg = HSIC_DATA_GPIO_PAD_CTL;
-			writel_relaxed(HSIC_GPIO_PAD_VAL, reg);
-		}
+		/* Set LV_MODE=0x1 and DCC=0x2 in HSIC_GPIO PAD_CTL register */
+		writel_relaxed(HSIC_GPIO_PAD_VAL, HSIC_STROBE_GPIO_PAD_CTL);
+		writel_relaxed(HSIC_GPIO_PAD_VAL, HSIC_DATA_GPIO_PAD_CTL);
 
 		mb();
 
@@ -1292,11 +1304,16 @@ static int msm_hsic_init_clocks(struct msm_hsic_hcd *mehci, u32 init)
 		return ret;
 	}
 
-	/* alt_core_clk is for LINK to be used during PHY RESET
+	/* alt_core_clk is for LINK to be used during PHY RESET in
+	 * targets on which link does NOT use asynchronous reset methodology.
 	 * clock rate appropriately set by target specific clock driver */
 	mehci->alt_core_clk = clk_get(mehci->dev, "alt_core_clk");
-	if (IS_ERR(mehci->alt_core_clk))
-		dev_dbg(mehci->dev, "failed to get alt_core_clk\n");
+	if (IS_ERR(mehci->alt_core_clk)) {
+		dev_err(mehci->dev, "failed to core_clk\n");
+		ret = PTR_ERR(mehci->alt_core_clk);
+		goto put_core_clk;
+	}
+	clk_set_rate(mehci->cal_clk, 10000000);
 
 	/* phy_clk is required for HSIC PHY operation
 	 * clock rate appropriately set by target specific clock driver */
@@ -1314,6 +1331,7 @@ static int msm_hsic_init_clocks(struct msm_hsic_hcd *mehci, u32 init)
 		ret = PTR_ERR(mehci->cal_clk);
 		goto put_phy_clk;
 	}
+	clk_set_rate(mehci->cal_clk, 10000000);
 
 	/* ahb_clk is required for data transfers */
 	mehci->ahb_clk = clk_get(mehci->dev, "iface_clk");
@@ -1343,8 +1361,8 @@ put_cal_clk:
 put_phy_clk:
 	clk_put(mehci->phy_clk);
 put_alt_core_clk:
-	if (!IS_ERR(mehci->alt_core_clk))
-		clk_put(mehci->alt_core_clk);
+	clk_put(mehci->alt_core_clk);
+put_core_clk:
 	clk_put(mehci->core_clk);
 
 	return ret;
@@ -1592,36 +1610,6 @@ static void ehci_hsic_msm_debugfs_cleanup(void)
 	debugfs_remove_recursive(ehci_hsic_msm_dbg_root);
 }
 
-struct msm_hsic_host_platform_data *msm_hsic_dt_to_pdata(
-				struct platform_device *pdev)
-{
-	struct device_node *node = pdev->dev.of_node;
-	struct msm_hsic_host_platform_data *pdata;
-
-	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
-	if (!pdata) {
-		dev_err(&pdev->dev, "unable to allocate platform data\n");
-		return NULL;
-	}
-	pdata->strobe = of_get_named_gpio(node, "hsic,strobe-gpio", 0);
-	if (pdata->strobe < 0)
-		pdata->strobe = 0;
-
-	pdata->data = of_get_named_gpio(node, "hsic,data-gpio", 0);
-	if (pdata->data < 0)
-		pdata->data = 0;
-
-	pdata->ignore_cal_pad_config = of_property_read_bool(node,
-					"hsic,ignore-cal-pad-config");
-	of_property_read_u32(node, "hsic,strobe-pad-offset",
-					&pdata->strobe_pad_offset);
-	of_property_read_u32(node, "hsic,data-pad-offset",
-					&pdata->data_pad_offset);
-
-	return pdata;
-}
-
-
 static int __devinit ehci_hsic_msm_probe(struct platform_device *pdev)
 {
 	struct usb_hcd *hcd;
@@ -1637,14 +1625,7 @@ static int __devinit ehci_hsic_msm_probe(struct platform_device *pdev)
 	 * resuming parent device due to which parent will be in suspend even
 	 * though child is active. Hence resume the parent device explicitly.
 	 */
-	if (pdev->dev.of_node) {
-		dev_dbg(&pdev->dev, "device tree enabled\n");
-		pdev->dev.platform_data = msm_hsic_dt_to_pdata(pdev);
-		dev_set_name(&pdev->dev, ehci_msm_hsic_driver.driver.name);
-	}
-	if (!pdev->dev.platform_data)
-		dev_dbg(&pdev->dev, "No platform data given\n");
-
+	
 	if (pdev->dev.parent)
 		pm_runtime_get_sync(pdev->dev.parent);
 

@@ -1,560 +1,18 @@
-From f25e548832f19c9bb7425ef215934071f879fd0c Mon Sep 17 00:00:00 2001
-From: Manu Gautam <mgautam@codeaurora.org>
-Date: Wed, 16 Jan 2013 18:58:38 -0600
-Subject: [PATCH] USB: HSIC: Add support for HSIC core and SMSC HUB using DT
+From d26225b600c6157f44c618b54999b66860a5e4bf Mon Sep 17 00:00:00 2001
+From: Justin <jokersax@gmail.com>
+Date: Wed, 23 Jan 2013 12:10:04 -0500
+Subject: [PATCH] [PATCH] USB: HSIC: Add support for HSIC core and SMSC HUB
+ using DT
 
-Add device tree support in SMSC HUB driver which also registers
-platform_device for HSIC as its child. This allows SMSC HUB driver
-to turn OFF clocks for power savings after HSIC is suspended.
-Also add support for SMSC HUB to use dedicated clock as ref_clk
-instead of XO.
-
-Change-Id: I3e8828ddc232936df3e21c8e1158af92b16996a2
-Signed-off-by: Manu Gautam <mgautam@codeaurora.org>
 ---
- .../devicetree/bindings/usb/msm-ehci-hsic.txt      |   54 +++
- drivers/misc/smsc_hub.c                            |  346 +++++++++++++++-----
- drivers/usb/host/ehci-msm-hsic.c                   |   85 ++++-
- include/linux/smsc3503.h                           |    2 +
- include/linux/usb/msm_hsusb.h                      |    4 +
- 5 files changed, 399 insertions(+), 92 deletions(-)
+ drivers/usb/host/ehci-msm-hsic.c     |   85 +++-
+ 6 files changed, 1071 insertions(+), 182 deletions(-)
 
-diff --git a/Documentation/devicetree/bindings/usb/msm-ehci-hsic.txt b/Documentation/devicetree/bindings/usb/msm-ehci-hsic.txt
-index 0e59f69..ffb0c6a 100644
---- a/Documentation/devicetree/bindings/usb/msm-ehci-hsic.txt
-+++ b/Documentation/devicetree/bindings/usb/msm-ehci-hsic.txt
-@@ -9,6 +9,17 @@ Required properties :
- - <supply-name>-supply: handle to the regulator device tree node
-   Required "supply-name" is "HSIC_VDDCX" and optionally - "HSIC_GDSC".
- 
-+Optional properties :
-+- hsic,<gpio-name>-gpio : handle to the GPIO node, see "gpios property"
-+  in Documentation/devicetree/bindings/gpio/gpio.txt.
-+  Optional "gpio-name" can be "strobe" and "data".
-+- hsic,ignore-cal-pad-config : If present then HSIC CAL PAD configuration
-+  using TLMM is not performed.
-+- hsic,strobe-pad-offset : Offset of TLMM register for configuring HSIC
-+  STROBE GPIO PAD.
-+- hsic,data-pad-offset : Offset of TLMM register for configuring HSIC
-+  DATA GPIO PAD.
-+
- Example MSM HSIC EHCI controller device node :
- 	hsic@f9a15000 {
- 		compatible = "qcom,hsic-host";
-@@ -17,4 +28,47 @@ Example MSM HSIC EHCI controller device node :
- 		interrupt-names = "core_irq";
- 		HSIC_VDDCX-supply = <&pm8019_l12>;
- 		HSIC_GDSC-supply = <&gdsc_usb_hsic>;
-+		hsic,strobe-gpio = <&msmgpio 144 0x00>;
-+		hsic,data-gpio = <&msmgpio 145 0x00>;
-+		hsic,ignore-cal-pad-config;
-+		hsic,strobe-pad-offset = <0x2050>;
-+		hsic,data-pad-offset = <0x2054>;
- 	};
-+
-+SMSC HSIC HUB
-+
-+Required properties :
-+- compatible : should be "qcom,hsic-smsc-hub"
-+- smsc,<gpio-name>-gpio : handle to the GPIO node, see "gpios property"
-+  in Documentation/devicetree/bindings/gpio/gpio.txt.
-+  Required "gpio-name" is "reset" and optionally - "refclk", "int".
-+- <supply-name>-supply: handle to the regulator device tree node
-+  Required "supply-name" is "hub_init" and optionally - "hub_vbus".
-+- Sub node for "MSM HSIC EHCI controller".
-+  Sub node has the required properties mentioned above.
-+
-+Example SMSC HSIC HUB :
-+	hsic_hub {
-+		compatible = "qcom,hsic-smsc-hub";
-+		ranges;
-+		smsc,reset-gpio = <&pm8941_gpios 8 0x00>;
-+		smsc,refclk-gpio = <&pm8941_gpios 16 0x00>;
-+		smsc,int-gpio = <&msmgpio 50 0x00>;
-+		hub_int-supply = <&pm8941_l10>;
-+		hub_vbus-supply = <&pm8941_mvs1>;
-+
-+		hsic@f9a00000 {
-+			compatible = "qcom,hsic-host";
-+			reg = <0xf9a00000 0x400>;
-+			interrupts = <0 136 0>;
-+			interrupt-names = "core_irq";
-+			HSIC_VDDCX-supply = <&pm8841_s2>;
-+			HSIC_GDSC-supply = <&gdsc_usb_hsic>;
-+			hsic,strobe-gpio = <&msmgpio 144 0x00>;
-+			hsic,data-gpio = <&msmgpio 145 0x00>;
-+			hsic,ignore-cal-pad-config;
-+			hsic,strobe-pad-offset = <0x2050>;
-+			hsic,data-pad-offset = <0x2054>;
-+		};
-+	};
-+
-diff --git a/drivers/misc/smsc_hub.c b/drivers/misc/smsc_hub.c
-index b11474a..3713ffa 100644
---- a/drivers/misc/smsc_hub.c
-+++ b/drivers/misc/smsc_hub.c
-@@ -16,6 +16,9 @@
- #include <linux/regulator/consumer.h>
- #include <linux/i2c.h>
- #include <linux/gpio.h>
-+#include <linux/of_gpio.h>
-+#include <linux/of_device.h>
-+#include <linux/clk.h>
- #include <linux/slab.h>
- #include <linux/delay.h>
- #include <linux/smsc3503.h>
-@@ -28,12 +31,16 @@
- SMSC3503_I2C_ADDR, I2C_CLIENT_END };
- 
- struct hsic_hub {
--	struct regulator *hsic_hub_reg;
- 	struct device *dev;
-+	struct smsc_hub_platform_data *pdata;
- 	struct i2c_client *client;
- 	struct msm_xo_voter *xo_handle;
-+	struct clk		*ref_clk;
-+	struct regulator	*hsic_hub_reg;
-+	struct regulator	*int_pad_reg, *hub_vbus_reg;
- };
- static struct hsic_hub *smsc_hub;
-+static struct platform_driver smsc_hub_driver;
- 
- /* APIs for setting/clearing bits and for reading/writing values */
- static inline int hsic_hub_get_u8(struct i2c_client *client, u8 reg)
-@@ -150,16 +157,208 @@ static int i2c_hsic_hub_remove(struct i2c_client *client)
- 	.id_table = hsic_hub_id,
- };
- 
-+static int msm_hsic_hub_init_clock(struct hsic_hub *hub, int init)
-+{
-+	int ret;
-+
-+	if (!init) {
-+		if (!IS_ERR(hub->ref_clk))
-+			clk_disable_unprepare(hub->ref_clk);
-+		else
-+			msm_xo_put(smsc_hub->xo_handle);
-+
-+		return 0;
-+	}
-+
-+	hub->ref_clk = devm_clk_get(hub->dev, "ref_clk");
-+	if (IS_ERR(hub->ref_clk)) {
-+		dev_dbg(hub->dev, "failed to get ref_clk\n");
-+
-+		/* In the absence of dedicated ref_clk, xo clocks the HUB */
-+		smsc_hub->xo_handle = msm_xo_get(MSM_XO_TCXO_D1, "hsic_hub");
-+		if (IS_ERR(smsc_hub->xo_handle)) {
-+			dev_err(hub->dev, "not able to get the handle\n"
-+						 "for TCXO D1 buffer\n");
-+			return PTR_ERR(smsc_hub->xo_handle);
-+		}
-+
-+		ret = msm_xo_mode_vote(smsc_hub->xo_handle, MSM_XO_MODE_ON);
-+		if (ret) {
-+			dev_err(hub->dev, "failed to vote for TCXO\n"
-+				"D1 buffer\n");
-+			msm_xo_put(smsc_hub->xo_handle);
-+			return ret;
-+		}
-+	} else {
-+		ret = clk_prepare_enable(hub->ref_clk);
-+		if (ret)
-+			dev_err(hub->dev, "clk_enable failed for ref_clk\n");
-+	}
-+
-+	return ret;
-+}
-+#define HSIC_HUB_INT_VOL_MIN	1800000 /* uV */
-+#define HSIC_HUB_INT_VOL_MAX	2950000 /* uV */
-+static int msm_hsic_hub_init_gpio(struct hsic_hub *hub, int init)
-+{
-+	int ret;
-+	struct smsc_hub_platform_data *pdata = hub->pdata;
-+
-+	if (!init) {
-+		if (!IS_ERR(smsc_hub->int_pad_reg)) {
-+			regulator_disable(smsc_hub->int_pad_reg);
-+			regulator_set_voltage(smsc_hub->int_pad_reg, 0,
-+						HSIC_HUB_INT_VOL_MAX);
-+		}
-+		return 0;
-+	}
-+
-+	ret = devm_gpio_request(hub->dev, pdata->hub_reset, "HSIC_HUB_RESET");
-+	if (ret < 0) {
-+		dev_err(hub->dev, "gpio request failed for GPIO%d\n",
-+							pdata->hub_reset);
-+		return ret;
-+	}
-+
-+	if (pdata->refclk_gpio) {
-+		ret = devm_gpio_request(hub->dev, pdata->refclk_gpio,
-+							 "HSIC_HUB_CLK");
-+		if (ret < 0)
-+			dev_err(hub->dev, "gpio request failed (CLK GPIO)\n");
-+	}
-+
-+	if (pdata->int_gpio) {
-+		ret = devm_gpio_request(hub->dev, pdata->int_gpio,
-+							 "HSIC_HUB_INT");
-+		if (ret < 0) {
-+			dev_err(hub->dev, "gpio request failed (INT GPIO)\n");
-+			return ret;
-+		}
-+
-+		/* Enable LDO if required for external pull-up */
-+		smsc_hub->int_pad_reg = devm_regulator_get(hub->dev, "hub_int");
-+		if (IS_ERR(smsc_hub->int_pad_reg)) {
-+			dev_dbg(hub->dev, "unable to get ext hub_int reg\n");
-+		} else {
-+			ret = regulator_set_voltage(smsc_hub->int_pad_reg,
-+						HSIC_HUB_INT_VOL_MIN,
-+						HSIC_HUB_INT_VOL_MAX);
-+			if (ret) {
-+				dev_err(hub->dev, "unable to set the voltage\n"
-+						" for hsic hub int reg\n");
-+				return ret;
-+			}
-+			ret = regulator_enable(smsc_hub->int_pad_reg);
-+			if (ret) {
-+				dev_err(hub->dev, "unable to enable int reg\n");
-+				regulator_set_voltage(smsc_hub->int_pad_reg, 0,
-+							HSIC_HUB_INT_VOL_MAX);
-+				return ret;
-+			}
-+		}
-+	}
-+
-+	return 0;
-+}
-+
- #define HSIC_HUB_VDD_VOL_MIN	1650000 /* uV */
- #define HSIC_HUB_VDD_VOL_MAX	1950000 /* uV */
- #define HSIC_HUB_VDD_LOAD	36000	/* uA */
-+static int msm_hsic_hub_init_vdd(struct hsic_hub *hub, int init)
-+{
-+	int ret;
-+
-+	if (!init) {
-+		if (!IS_ERR(smsc_hub->hsic_hub_reg)) {
-+			regulator_disable(smsc_hub->hsic_hub_reg);
-+			regulator_set_optimum_mode(smsc_hub->hsic_hub_reg, 0);
-+			regulator_set_voltage(smsc_hub->hsic_hub_reg, 0,
-+							HSIC_HUB_VDD_VOL_MAX);
-+		}
-+		return 0;
-+	}
-+
-+	smsc_hub->hsic_hub_reg = devm_regulator_get(hub->dev, "EXT_HUB_VDDIO");
-+	if (IS_ERR(smsc_hub->hsic_hub_reg)) {
-+		dev_dbg(hub->dev, "unable to get ext hub vddcx\n");
-+	} else {
-+		ret = regulator_set_voltage(smsc_hub->hsic_hub_reg,
-+				HSIC_HUB_VDD_VOL_MIN,
-+				HSIC_HUB_VDD_VOL_MAX);
-+		if (ret) {
-+			dev_err(hub->dev, "unable to set the voltage\n"
-+						"for hsic hub reg\n");
-+			return ret;
-+		}
-+
-+		ret = regulator_set_optimum_mode(smsc_hub->hsic_hub_reg,
-+					HSIC_HUB_VDD_LOAD);
-+		if (ret < 0) {
-+			dev_err(hub->dev, "Unable to set mode of VDDCX\n");
-+			goto reg_optimum_mode_fail;
-+		}
-+
-+		ret = regulator_enable(smsc_hub->hsic_hub_reg);
-+		if (ret) {
-+			dev_err(hub->dev, "unable to enable ext hub vddcx\n");
-+			goto reg_enable_fail;
-+		}
-+	}
-+
-+	return 0;
-+
-+reg_enable_fail:
-+	regulator_set_optimum_mode(smsc_hub->hsic_hub_reg, 0);
-+reg_optimum_mode_fail:
-+	regulator_set_voltage(smsc_hub->hsic_hub_reg, 0,
-+				HSIC_HUB_VDD_VOL_MAX);
-+
-+	return ret;
-+}
-+struct smsc_hub_platform_data *msm_hub_dt_to_pdata(
-+				struct platform_device *pdev)
-+{
-+	struct device_node *node = pdev->dev.of_node;
-+	struct smsc_hub_platform_data *pdata;
-+
-+	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
-+	if (!pdata) {
-+		dev_err(&pdev->dev, "unable to allocate platform data\n");
-+		return ERR_PTR(-ENOMEM);
-+	}
-+
-+	pdata->hub_reset = of_get_named_gpio(node, "smsc,reset-gpio", 0);
-+	if (pdata->hub_reset < 0)
-+		return ERR_PTR(pdata->hub_reset);
-+
-+	pdata->refclk_gpio = of_get_named_gpio(node, "smsc,refclk-gpio", 0);
-+	if (pdata->refclk_gpio < 0)
-+		pdata->refclk_gpio = 0;
-+
-+	pdata->int_gpio = of_get_named_gpio(node, "smsc,int-gpio", 0);
-+	if (pdata->int_gpio < 0)
-+		pdata->int_gpio = 0;
-+
-+	return pdata;
-+}
-+
- static int __devinit smsc_hub_probe(struct platform_device *pdev)
- {
- 	int ret = 0;
- 	const struct smsc_hub_platform_data *pdata;
-+	struct device_node *node = pdev->dev.of_node;
- 	struct i2c_adapter *i2c_adap;
- 	struct i2c_board_info i2c_info;
- 
-+	if (pdev->dev.of_node) {
-+		dev_dbg(&pdev->dev, "device tree enabled\n");
-+		pdev->dev.platform_data = msm_hub_dt_to_pdata(pdev);
-+		if (IS_ERR(pdev->dev.platform_data))
-+			return PTR_ERR(pdev->dev.platform_data);
-+
-+		dev_set_name(&pdev->dev, smsc_hub_driver.driver.name);
-+	}
-+
- 	if (!pdev->dev.platform_data) {
- 		dev_err(&pdev->dev, "No platform data\n");
- 		return -ENODEV;
-@@ -169,59 +368,34 @@ static int __devinit smsc_hub_probe(struct platform_device *pdev)
- 	if (!pdata->hub_reset)
- 		return -EINVAL;
- 
--	smsc_hub = kzalloc(sizeof(*smsc_hub), GFP_KERNEL);
-+	smsc_hub = devm_kzalloc(&pdev->dev, sizeof(*smsc_hub), GFP_KERNEL);
- 	if (!smsc_hub)
- 		return -ENOMEM;
- 
--	smsc_hub->hsic_hub_reg = regulator_get(&pdev->dev, "EXT_HUB_VDDIO");
--	if (IS_ERR(smsc_hub->hsic_hub_reg)) {
--		dev_err(&pdev->dev, "unable to get ext hub vddcx\n");
--		ret = PTR_ERR(smsc_hub->hsic_hub_reg);
--		goto free_mem;
--	}
-+	smsc_hub->dev = &pdev->dev;
-+	smsc_hub->pdata = pdev->dev.platform_data;
- 
--	ret = gpio_request(pdata->hub_reset, "HSIC_HUB_RESET_GPIO");
--	if (ret < 0) {
--		dev_err(&pdev->dev, "gpio request failed for GPIO%d\n",
--							pdata->hub_reset);
--		goto gpio_req_fail;
-+	smsc_hub->hub_vbus_reg = devm_regulator_get(&pdev->dev, "hub_vbus");
-+	ret = PTR_ERR(smsc_hub->hub_vbus_reg);
-+	if (ret == -EPROBE_DEFER) {
-+		dev_dbg(&pdev->dev, "failed to get hub_vbus\n");
-+		return ret;
- 	}
- 
--	ret = regulator_set_voltage(smsc_hub->hsic_hub_reg,
--			HSIC_HUB_VDD_VOL_MIN,
--			HSIC_HUB_VDD_VOL_MAX);
-+	ret = msm_hsic_hub_init_vdd(smsc_hub, 1);
- 	if (ret) {
--		dev_err(&pdev->dev, "unable to set the voltage"
--				"for hsic hub reg\n");
--		goto reg_set_voltage_fail;
--	}
--
--	ret = regulator_set_optimum_mode(smsc_hub->hsic_hub_reg,
--				HSIC_HUB_VDD_LOAD);
--	if (ret < 0) {
--		dev_err(&pdev->dev, "Unable to set optimum mode of regulator:"
--							"VDDCX\n");
--		goto reg_optimum_mode_fail;
-+		dev_err(&pdev->dev, "failed to init hub VDD\n");
-+		return ret;
- 	}
--
--	ret = regulator_enable(smsc_hub->hsic_hub_reg);
-+	ret = msm_hsic_hub_init_clock(smsc_hub, 1);
- 	if (ret) {
--		dev_err(&pdev->dev, "unable to enable ext hub vddcx\n");
--		goto reg_enable_fail;
--	}
--
--	smsc_hub->xo_handle = msm_xo_get(MSM_XO_TCXO_D1, "hsic_hub");
--	if (IS_ERR(smsc_hub->xo_handle)) {
--		dev_err(&pdev->dev, "not able to get the handle"
--					 "for TCXO D1 buffer\n");
--			goto disable_regulator;
-+		dev_err(&pdev->dev, "failed to init hub clock\n");
-+		goto uninit_vdd;
- 	}
--
--	ret = msm_xo_mode_vote(smsc_hub->xo_handle, MSM_XO_MODE_ON);
-+	ret = msm_hsic_hub_init_gpio(smsc_hub, 1);
- 	if (ret) {
--		dev_err(&pdev->dev, "failed to vote for TCXO"
--			"D1 buffer\n");
--		goto xo_vote_fail;
-+		dev_err(&pdev->dev, "failed to init hub gpios\n");
-+		goto uninit_clock;
- 	}
- 
- 	gpio_direction_output(pdata->hub_reset, 0);
-@@ -231,6 +405,20 @@ static int __devinit smsc_hub_probe(struct platform_device *pdev)
- 	udelay(5);
- 	gpio_direction_output(pdata->hub_reset, 1);
- 
-+	ret = of_platform_populate(node, NULL, NULL, &pdev->dev);
-+	if (ret) {
-+		dev_err(&pdev->dev, "failed to add child node, ret=%d\n", ret);
-+		goto uninit_gpio;
-+	}
-+
-+	if (!IS_ERR(smsc_hub->hub_vbus_reg)) {
-+		ret = regulator_enable(smsc_hub->hub_vbus_reg);
-+		if (ret) {
-+			dev_err(&pdev->dev, "unable to enable hub_vbus\n");
-+			goto uninit_gpio;
-+		}
-+	}
-+
- 	ret = i2c_add_driver(&hsic_hub_driver);
- 	if (ret < 0) {
- 		dev_err(&pdev->dev, "failed to add I2C hsic_hub_driver\n");
-@@ -261,21 +449,12 @@ static int __devinit smsc_hub_probe(struct platform_device *pdev)
- 
- 	return 0;
- 
--xo_vote_fail:
--	msm_xo_put(smsc_hub->xo_handle);
--disable_regulator:
--	regulator_disable(smsc_hub->hsic_hub_reg);
--reg_enable_fail:
--	regulator_set_optimum_mode(smsc_hub->hsic_hub_reg, 0);
--reg_optimum_mode_fail:
--	regulator_set_voltage(smsc_hub->hsic_hub_reg, 0,
--				HSIC_HUB_VDD_VOL_MIN);
--reg_set_voltage_fail:
--	gpio_free(pdata->hub_reset);
--gpio_req_fail:
--	regulator_put(smsc_hub->hsic_hub_reg);
--free_mem:
--	kfree(smsc_hub);
-+uninit_gpio:
-+	msm_hsic_hub_init_gpio(smsc_hub, 0);
-+uninit_clock:
-+	msm_hsic_hub_init_clock(smsc_hub, 0);
-+uninit_vdd:
-+	msm_hsic_hub_init_vdd(smsc_hub, 0);
- 
- 	return ret;
- }
-@@ -291,15 +470,11 @@ static int smsc_hub_remove(struct platform_device *pdev)
- 		i2c_del_driver(&hsic_hub_driver);
- 	}
- 	pm_runtime_disable(&pdev->dev);
--	msm_xo_put(smsc_hub->xo_handle);
- 
--	regulator_disable(smsc_hub->hsic_hub_reg);
--	regulator_set_optimum_mode(smsc_hub->hsic_hub_reg, 0);
--	regulator_set_voltage(smsc_hub->hsic_hub_reg, 0,
--				HSIC_HUB_VDD_VOL_MIN);
--	gpio_free(pdata->hub_reset);
--	regulator_put(smsc_hub->hsic_hub_reg);
--	kfree(smsc_hub);
-+	regulator_disable(smsc_hub->hub_vbus_reg);
-+	msm_hsic_hub_init_gpio(smsc_hub, 0);
-+	msm_hsic_hub_init_clock(smsc_hub, 0);
-+	msm_hsic_hub_init_vdd(smsc_hub, 0);
- 
- 	return 0;
- }
-@@ -315,24 +490,32 @@ static int msm_smsc_runtime_idle(struct device *dev)
- 
- static int smsc_hub_lpm_enter(struct device *dev)
- {
--	int ret;
-+	int ret = 0;
- 
--	ret = msm_xo_mode_vote(smsc_hub->xo_handle, MSM_XO_MODE_OFF);
--	if (ret) {
--		pr_err("%s: failed to devote for TCXO"
--			"D1 buffer%d\n", __func__, ret);
-+	if (!IS_ERR(smsc_hub->ref_clk)) {
-+		clk_disable_unprepare(smsc_hub->ref_clk);
-+	} else {
-+		ret = msm_xo_mode_vote(smsc_hub->xo_handle, MSM_XO_MODE_OFF);
-+		if (ret) {
-+			pr_err("%s: failed to devote for TCXO\n"
-+				"D1 buffer%d\n", __func__, ret);
-+		}
- 	}
- 	return ret;
- }
- 
- static int smsc_hub_lpm_exit(struct device *dev)
- {
--	int ret;
-+	int ret = 0;
- 
--	ret = msm_xo_mode_vote(smsc_hub->xo_handle, MSM_XO_MODE_ON);
--	if (ret) {
--		pr_err("%s: failed to vote for TCXO"
--			"D1 buffer%d\n", __func__, ret);
-+	if (!IS_ERR(smsc_hub->ref_clk)) {
-+		clk_prepare_enable(smsc_hub->ref_clk);
-+	} else {
-+		ret = msm_xo_mode_vote(smsc_hub->xo_handle, MSM_XO_MODE_ON);
-+		if (ret) {
-+			pr_err("%s: failed to vote for TCXO\n"
-+				"D1 buffer%d\n", __func__, ret);
-+		}
- 	}
- 	return ret;
- }
-@@ -347,6 +530,13 @@ static int smsc_hub_lpm_exit(struct device *dev)
- };
- #endif
- 
-+static const struct of_device_id hsic_hub_dt_match[] = {
-+	{ .compatible = "qcom,hsic-smsc-hub",
-+	},
-+	{}
-+};
-+MODULE_DEVICE_TABLE(of, hsic_hub_dt_match);
-+
- static struct platform_driver smsc_hub_driver = {
- 	.driver = {
- 		.name = "msm_smsc_hub",
-@@ -354,13 +544,15 @@ static int smsc_hub_lpm_exit(struct device *dev)
- #ifdef CONFIG_PM
- 		.pm = &smsc_hub_dev_pm_ops,
- #endif
-+		.of_match_table = hsic_hub_dt_match,
- 	},
-+	.probe = smsc_hub_probe,
- 	.remove = smsc_hub_remove,
- };
- 
- static int __init smsc_hub_init(void)
- {
--	return platform_driver_probe(&smsc_hub_driver, smsc_hub_probe);
-+	return platform_driver_register(&smsc_hub_driver);
- }
- 
- static void __exit smsc_hub_exit(void)
 diff --git a/drivers/usb/host/ehci-msm-hsic.c b/drivers/usb/host/ehci-msm-hsic.c
-index 95edab5..9e19da7 100644
+index 1bb5746..62d5dbc 100644
 --- a/drivers/usb/host/ehci-msm-hsic.c
 +++ b/drivers/usb/host/ehci-msm-hsic.c
-@@ -31,9 +31,11 @@
+@@ -31,12 +31,15 @@
  #include <linux/pm_runtime.h>
  #include <linux/regulator/consumer.h>
  
@@ -564,17 +22,13 @@ index 95edab5..9e19da7 100644
  #include <linux/gpio.h>
 +#include <linux/of_gpio.h>
  #include <linux/spinlock.h>
- #include <linux/kthread.h>
  #include <linux/wait.h>
-@@ -104,6 +106,7 @@ struct msm_hsic_hcd {
- static bool debug_bus_voting_enabled = true;
- static u64 ehci_msm_hsic_dma_mask = DMA_BIT_MASK(32);
  
 +static struct platform_driver ehci_msm_hsic_driver;
  
- static unsigned int enable_dbg_log = 1;
- module_param(enable_dbg_log, uint, S_IRUGO | S_IWUSR);
-@@ -594,15 +597,17 @@ static int msm_hsic_start(struct msm_hsic_hcd *mehci)
+ #include <mach/msm_bus.h>
+ #include <mach/clk.h>
+@@ -623,15 +626,17 @@ static int msm_hsic_start(struct msm_hsic_hcd *mehci)
  {
  	struct msm_hsic_host_platform_data *pdata = mehci->dev->platform_data;
  	int ret;
@@ -596,7 +50,7 @@ index 95edab5..9e19da7 100644
  
  		/*set periodic calibration interval to ~2.048sec in
  		  HSIC_IO_CAL_REG */
-@@ -617,9 +622,25 @@ static int msm_hsic_start(struct msm_hsic_hcd *mehci)
+@@ -646,9 +651,25 @@ static int msm_hsic_start(struct msm_hsic_hcd *mehci)
  			dev_err(mehci->dev, " gpio configuarion failed\n");
  			return ret;
  		}
@@ -625,7 +79,7 @@ index 95edab5..9e19da7 100644
  
  		mb();
  
-@@ -1254,11 +1275,8 @@ static int msm_hsic_init_clocks(struct msm_hsic_hcd *mehci, u32 init)
+@@ -1274,11 +1295,8 @@ static int msm_hsic_init_clocks(struct msm_hsic_hcd *mehci, u32 init)
  	/* alt_core_clk is for LINK to be used during PHY RESET
  	 * clock rate appropriately set by target specific clock driver */
  	mehci->alt_core_clk = clk_get(mehci->dev, "alt_core_clk");
@@ -639,7 +93,7 @@ index 95edab5..9e19da7 100644
  
  	/* phy_clk is required for HSIC PHY operation
  	 * clock rate appropriately set by target specific clock driver */
-@@ -1276,7 +1294,6 @@ static int msm_hsic_init_clocks(struct msm_hsic_hcd *mehci, u32 init)
+@@ -1296,7 +1314,6 @@ static int msm_hsic_init_clocks(struct msm_hsic_hcd *mehci, u32 init)
  		ret = PTR_ERR(mehci->cal_clk);
  		goto put_phy_clk;
  	}
@@ -647,7 +101,7 @@ index 95edab5..9e19da7 100644
  
  	/* ahb_clk is required for data transfers */
  	mehci->ahb_clk = clk_get(mehci->dev, "iface_clk");
-@@ -1306,8 +1323,8 @@ static int msm_hsic_init_clocks(struct msm_hsic_hcd *mehci, u32 init)
+@@ -1326,8 +1343,8 @@ static int msm_hsic_init_clocks(struct msm_hsic_hcd *mehci, u32 init)
  put_phy_clk:
  	clk_put(mehci->phy_clk);
  put_alt_core_clk:
@@ -658,7 +112,7 @@ index 95edab5..9e19da7 100644
  	clk_put(mehci->core_clk);
  
  	return ret;
-@@ -1553,6 +1570,36 @@ static void ehci_hsic_msm_debugfs_cleanup(void)
+@@ -1575,6 +1592,36 @@ static void ehci_hsic_msm_debugfs_cleanup(void)
  	debugfs_remove_recursive(ehci_hsic_msm_dbg_root);
  }
  
@@ -695,10 +149,10 @@ index 95edab5..9e19da7 100644
  static int __devinit ehci_hsic_msm_probe(struct platform_device *pdev)
  {
  	struct usb_hcd *hcd;
-@@ -1563,6 +1610,14 @@ static int __devinit ehci_hsic_msm_probe(struct platform_device *pdev)
- 
- 	dev_dbg(&pdev->dev, "ehci_msm-hsic probe\n");
- 
+@@ -1590,6 +1637,14 @@ static int __devinit ehci_hsic_msm_probe(struct platform_device *pdev)
+ 	 * resuming parent device due to which parent will be in suspend even
+ 	 * though child is active. Hence resume the parent device explicitly.
+ 	 */
 +	if (pdev->dev.of_node) {
 +		dev_dbg(&pdev->dev, "device tree enabled\n");
 +		pdev->dev.platform_data = msm_hsic_dt_to_pdata(pdev);
@@ -707,38 +161,10 @@ index 95edab5..9e19da7 100644
 +	if (!pdev->dev.platform_data)
 +		dev_dbg(&pdev->dev, "No platform data given\n");
 +
- 	if (!pdev->dev.dma_mask)
- 		pdev->dev.dma_mask = &ehci_msm_hsic_dma_mask;
- 	if (!pdev->dev.coherent_dma_mask)
-diff --git a/include/linux/smsc3503.h b/include/linux/smsc3503.h
-index 66ba003..857ad1f 100644
---- a/include/linux/smsc3503.h
-+++ b/include/linux/smsc3503.h
-@@ -43,6 +43,8 @@
+ 	if (pdev->dev.parent)
+ 		pm_runtime_get_sync(pdev->dev.parent);
  
- struct smsc_hub_platform_data {
- 	unsigned hub_reset;
-+	unsigned refclk_gpio;
-+	unsigned int_gpio;
- };
- 
- #endif
-diff --git a/include/linux/usb/msm_hsusb.h b/include/linux/usb/msm_hsusb.h
-index 0fd8390..50daec0 100644
---- a/include/linux/usb/msm_hsusb.h
-+++ b/include/linux/usb/msm_hsusb.h
-@@ -378,6 +378,10 @@ struct msm_otg {
- struct msm_hsic_host_platform_data {
- 	unsigned strobe;
- 	unsigned data;
-+	bool ignore_cal_pad_config;
-+	int strobe_pad_offset;
-+	int data_pad_offset;
-+
- 	struct msm_bus_scale_pdata *bus_scale_table;
- 	unsigned log2_irq_thresh;
- 
+
 -- 
 1.7.10
-
 

@@ -48,6 +48,8 @@
 /* PTE EFUSE register offset. */
 #define PTE_EFUSE		0xC0
 
+#define FREQ_TABLE_SIZE		35
+
 static DEFINE_MUTEX(driver_lock);
 static DEFINE_SPINLOCK(l2_lock);
 
@@ -619,8 +621,56 @@ static void __init bus_init(struct msm_bus_scale_pdata *bus_scale_data,
 		dev_err(drv.dev, "initial bandwidth req failed (%d)\n", ret);
 }
 
+/*
+#ifdef CONFIG_CPU_VOLTAGE_TABLE
+
+#define HFPLL_MIN_VDD            800000
+#define HFPLL_MAX_VDD           1350000
+
+ssize_t acpuclk_get_vdd_levels_str(char *buf) {
+
+        int i, len = 0;
+
+        if (buf) {
+                mutex_lock(&driver_lock);
+
+                for (i = 0; drv.acpu_freq_tbl[i].speed.khz; i++) {
+                        len += sprintf(buf + len, "%8lu: %8d\n", drv.acpu_freq_tbl[i].speed.khz,
+                                drv.acpu_freq_tbl[i].vdd_core );
+                }
+
+                mutex_unlock(&driver_lock);
+        }
+        return len;
+}
+
+void acpuclk_set_vdd(unsigned int khz, int vdd_uv) {
+
+        int i;
+        unsigned int new_vdd_uv;
+
+        mutex_lock(&driver_lock);
+
+        for (i = 0; drv.acpu_freq_tbl[i].speed.khz; i++) {
+                if (khz == 0)
+                        new_vdd_uv = min(max((unsigned int)(drv.acpu_freq_tbl[i].vdd_core + vdd_uv),
+                                (unsigned int)HFPLL_MIN_VDD), (unsigned int)HFPLL_MAX_VDD);
+                else if ( drv.acpu_freq_tbl[i].speed.khz == khz)
+                        new_vdd_uv = min(max((unsigned int)vdd_uv,
+                                (unsigned int)HFPLL_MIN_VDD), (unsigned int)HFPLL_MAX_VDD);
+                else
+                        continue;
+
+                drv.acpu_freq_tbl[i].vdd_core = new_vdd_uv;
+        }
+        pr_warn("faux123: user voltage table modified!\n");
+        mutex_unlock(&driver_lock);
+}
+#endif  /* CONFIG_CPU_VOLTAGE_TABLE */
+
+
 #ifdef CONFIG_CPU_FREQ_MSM
-static struct cpufreq_frequency_table freq_table[NR_CPUS][35];
+static struct cpufreq_frequency_table freq_table[NR_CPUS][FREQ_TABLE_SIZE];
 
 static void __init cpufreq_table_init(void)
 {

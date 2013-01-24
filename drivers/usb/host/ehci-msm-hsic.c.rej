@@ -1,17 +1,109 @@
---- drivers/usb/host/ehci-msm-hsic.c
-+++ drivers/usb/host/ehci-msm-hsic.c
-@@ -1610,6 +1657,14 @@
+--- ehci-msm-hsic.c
++++ ehci-msm-hsic.c
+@@ -31,15 +31,12 @@
+ #include <linux/pm_runtime.h>
+ #include <linux/regulator/consumer.h>
  
- 	dev_dbg(&pdev->dev, "ehci_msm-hsic probe\n");
+-#include <linux/usb/ulpi.h>
+ #include <linux/usb/msm_hsusb_hw.h>
+ #include <linux/usb/msm_hsusb.h>
+ #include <linux/gpio.h>
+-#include <linux/of_gpio.h>
+ #include <linux/spinlock.h>
+ #include <linux/wait.h>
  
-+	if (pdev->dev.of_node) {
-+		dev_dbg(&pdev->dev, "device tree enabled\n");
-+		pdev->dev.platform_data = msm_hsic_dt_to_pdata(pdev);
-+		dev_set_name(&pdev->dev, ehci_msm_hsic_driver.driver.name);
-+	}
-+	if (!pdev->dev.platform_data)
-+		dev_dbg(&pdev->dev, "No platform data given\n");
+-static struct platform_driver ehci_msm_hsic_driver;
+ 
+ #include <mach/msm_bus.h>
+ #include <mach/clk.h>
+@@ -626,17 +623,15 @@
+ {
+ 	struct msm_hsic_host_platform_data *pdata = mehci->dev->platform_data;
+ 	int ret;
+-	void __iomem *reg;
+ 
+ 	/* HSIC init sequence when HSIC signals (Strobe/Data) are
+ 	routed via GPIOs */
+ 	if (pdata && pdata->strobe && pdata->data) {
+ 
+-		if (!pdata->ignore_cal_pad_config) {
+-			/* Enable LV_MODE in HSIC_CAL_PAD_CTL register */
+-			writel_relaxed(HSIC_LV_MODE, HSIC_CAL_PAD_CTL);
+-			mb();
+-		}
++		/* Enable LV_MODE in HSIC_CAL_PAD_CTL register */
++		writel_relaxed(HSIC_LV_MODE, HSIC_CAL_PAD_CTL);
 +
- 	if (!pdev->dev.dma_mask)
- 		pdev->dev.dma_mask = &ehci_msm_hsic_dma_mask;
- 	if (!pdev->dev.coherent_dma_mask)
++		mb();
+ 
+ 		/*set periodic calibration interval to ~2.048sec in
+ 		  HSIC_IO_CAL_REG */
+@@ -651,25 +646,9 @@
+ 			dev_err(mehci->dev, " gpio configuarion failed\n");
+ 			return ret;
+ 		}
+-		if (pdata->strobe_pad_offset) {
+-			/* Set CORE_CTL_EN in STROBE GPIO PAD_CTL register */
+-			reg = MSM_TLMM_BASE + pdata->strobe_pad_offset;
+-			writel_relaxed(readl_relaxed(reg) | 0x2000000, reg);
+-		} else {
+-			/* Set LV_MODE=0x1 and DCC=0x2 in STROBE GPIO PAD_CTL */
+-			reg = HSIC_STROBE_GPIO_PAD_CTL;
+-			writel_relaxed(HSIC_GPIO_PAD_VAL, reg);
+-		}
+-
+-		if (pdata->data_pad_offset) {
+-			/* Set CORE_CTL_EN in HSIC_DATA GPIO PAD_CTL register */
+-			reg = MSM_TLMM_BASE + pdata->data_pad_offset;
+-			writel_relaxed(readl_relaxed(reg) | 0x2000000, reg);
+-		} else {
+-			/* Set LV_MODE=0x1 and DCC=0x2 in STROBE GPIO PAD_CTL */
+-			reg = HSIC_DATA_GPIO_PAD_CTL;
+-			writel_relaxed(HSIC_GPIO_PAD_VAL, reg);
+-		}
++		/* Set LV_MODE=0x1 and DCC=0x2 in HSIC_GPIO PAD_CTL register */
++		writel_relaxed(HSIC_GPIO_PAD_VAL, HSIC_STROBE_GPIO_PAD_CTL);
++		writel_relaxed(HSIC_GPIO_PAD_VAL, HSIC_DATA_GPIO_PAD_CTL);
+ 
+ 		mb();
+ 
+@@ -1295,8 +1274,11 @@
+ 	/* alt_core_clk is for LINK to be used during PHY RESET
+ 	 * clock rate appropriately set by target specific clock driver */
+ 	mehci->alt_core_clk = clk_get(mehci->dev, "alt_core_clk");
+-	if (IS_ERR(mehci->alt_core_clk))
+-		dev_dbg(mehci->dev, "failed to get alt_core_clk\n");
++	if (IS_ERR(mehci->alt_core_clk)) {
++		dev_err(mehci->dev, "failed to core_clk\n");
++		ret = PTR_ERR(mehci->alt_core_clk);
++		goto put_core_clk;
++	}
+ 
+ 	/* phy_clk is required for HSIC PHY operation
+ 	 * clock rate appropriately set by target specific clock driver */
+@@ -1344,8 +1327,8 @@
+ put_phy_clk:
+ 	clk_put(mehci->phy_clk);
+ put_alt_core_clk:
+-	if (!IS_ERR(mehci->alt_core_clk))
+-		clk_put(mehci->alt_core_clk);
++	clk_put(mehci->alt_core_clk);
++put_core_clk:
+ 	clk_put(mehci->core_clk);
+ 
+ 	return ret;
+@@ -1608,14 +1561,6 @@
+ 	 * resuming parent device due to which parent will be in suspend even
+ 	 * though child is active. Hence resume the parent device explicitly.
+ 	 */
+-	if (pdev->dev.of_node) {
+-		dev_dbg(&pdev->dev, "device tree enabled\n");
+-		pdev->dev.platform_data = msm_hsic_dt_to_pdata(pdev);
+-		dev_set_name(&pdev->dev, ehci_msm_hsic_driver.driver.name);
+-	}
+-	if (!pdev->dev.platform_data)
+-		dev_dbg(&pdev->dev, "No platform data given\n");
+-
+ 	if (pdev->dev.parent)
+ 		pm_runtime_get_sync(pdev->dev.parent);
+ 
