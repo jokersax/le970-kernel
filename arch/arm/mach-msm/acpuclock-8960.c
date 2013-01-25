@@ -248,11 +248,11 @@ static struct scalable scalable_8064[] = {
 			.hfpll_base      = MSM_HFPLL_BASE + 0x200,
 			.aux_clk_sel     = MSM_ACC0_BASE  + 0x014,
 			.l2cpmr_iaddr    = L2CPUCPMR_IADDR,
-			.vreg[VREG_CORE] = { "krait0",     1150000 },
-			.vreg[VREG_MEM]  = { "krait0_mem", 1150000,
+			.vreg[VREG_CORE] = { "krait0",     1300000 },
+			.vreg[VREG_MEM]  = { "krait0_mem", 1250000,
 					     RPM_VREG_VOTER1,
 					     RPM_VREG_ID_PM8921_L24 },
-			.vreg[VREG_DIG]  = { "krait0_dig", 1150000,
+			.vreg[VREG_DIG]  = { "krait0_dig", 1250000,
 					     RPM_VREG_VOTER1,
 					     RPM_VREG_ID_PM8921_S3 },
 			.vreg[VREG_HFPLL_B] = { "hfpll0", 1800000,
@@ -264,10 +264,10 @@ static struct scalable scalable_8064[] = {
 			.aux_clk_sel     = MSM_ACC1_BASE  + 0x014,
 			.l2cpmr_iaddr    = L2CPUCPMR_IADDR,
 			.vreg[VREG_CORE] = { "krait1",     1300000 },
-			.vreg[VREG_MEM]  = { "krait1_mem", 1150000,
+			.vreg[VREG_MEM]  = { "krait1_mem", 1250000,
 					     RPM_VREG_VOTER2,
 					     RPM_VREG_ID_PM8921_L24 },
-			.vreg[VREG_DIG]  = { "krait1_dig", 1150000,
+			.vreg[VREG_DIG]  = { "krait1_dig", 1250000,
 					     RPM_VREG_VOTER2,
 					     RPM_VREG_ID_PM8921_S3 },
 			.vreg[VREG_HFPLL_B] = { "hfpll1", 1800000,
@@ -279,10 +279,10 @@ static struct scalable scalable_8064[] = {
 			.aux_clk_sel     = MSM_ACC2_BASE  + 0x014,
 			.l2cpmr_iaddr    = L2CPUCPMR_IADDR,
 			.vreg[VREG_CORE] = { "krait2",     1300000 },
-			.vreg[VREG_MEM]  = { "krait2_mem", 1150000,
+			.vreg[VREG_MEM]  = { "krait2_mem", 1250000,
 					     RPM_VREG_VOTER4,
 					     RPM_VREG_ID_PM8921_L24 },
-			.vreg[VREG_DIG]  = { "krait2_dig", 1150000,
+			.vreg[VREG_DIG]  = { "krait2_dig", 1250000,
 					     RPM_VREG_VOTER4,
 					     RPM_VREG_ID_PM8921_S3 },
 			.vreg[VREG_HFPLL_B] = { "hfpll2", 1800000,
@@ -294,10 +294,10 @@ static struct scalable scalable_8064[] = {
 			.aux_clk_sel     = MSM_ACC3_BASE  + 0x014,
 			.l2cpmr_iaddr    = L2CPUCPMR_IADDR,
 			.vreg[VREG_CORE] = { "krait3",     1300000 },
-			.vreg[VREG_MEM]  = { "krait3_mem", 1150000,
+			.vreg[VREG_MEM]  = { "krait3_mem", 1250000,
 					     RPM_VREG_VOTER5,
 					     RPM_VREG_ID_PM8921_L24 },
-			.vreg[VREG_DIG]  = { "krait3_dig", 1150000,
+			.vreg[VREG_DIG]  = { "krait3_dig", 1250000,
 					     RPM_VREG_VOTER5,
 					     RPM_VREG_ID_PM8921_S3 },
 			.vreg[VREG_HFPLL_B] = { "hfpll3", 1800000,
@@ -628,8 +628,8 @@ static struct l2_level l2_freq_tbl_8064[] = {
 
 /* TODO: Update core voltages when data is available. */
 static struct acpu_level acpu_freq_tbl_8064_slow[] = {
-	{ 0, { STBY_KHZ, QSB,   0, 0, 0x00 }, L2(0),   950000 },
-	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(1),   950000 },
+	{ 0, { STBY_KHZ, QSB,   0, 0, 0x00 }, L2(0),   975000 },
+	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(1),   975000 },
 	{ 0, {   432000, HFPLL, 2, 0, 0x20 }, L2(7),  1000000 },
 	{ 1, {   486000, HFPLL, 2, 0, 0x24 }, L2(7),  1000000 },
 	{ 0, {   540000, HFPLL, 2, 0, 0x28 }, L2(7),  1000000 },
@@ -722,8 +722,8 @@ static struct acpu_level acpu_freq_tbl_8064_factory_fast[] = {
 };
 #endif
 static struct acpu_level acpu_freq_tbl_8064_nom[] = {
-	{ 0, { STBY_KHZ, QSB,   0, 0, 0x00 }, L2(0),   900000 },
-	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(1),   900000 },
+	{ 0, { STBY_KHZ, QSB,   0, 0, 0x00 }, L2(0),   925000 },
+	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(1),   925000 },
 	{ 0, {   432000, HFPLL, 2, 0, 0x20 }, L2(7),   950000 },
 	{ 1, {   486000, HFPLL, 2, 0, 0x24 }, L2(7),   950000 },
 	{ 0, {   540000, HFPLL, 2, 0, 0x28 }, L2(7),   975000 },
@@ -763,8 +763,8 @@ static struct acpu_level acpu_freq_tbl_8064_nom[] = {
 };
 
 static struct acpu_level acpu_freq_tbl_8064_fast[] = {
-	{ 0, { STBY_KHZ, QSB,   0, 0, 0x00 }, L2(0),   850000 },
-	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(1),   850000 },
+	{ 0, { STBY_KHZ, QSB,   0, 0, 0x00 }, L2(0),   875000 },
+	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(1),   875000 },
 	{ 0, {   432000, HFPLL, 2, 0, 0x20 }, L2(7),   900000 },
 	{ 1, {   486000, HFPLL, 2, 0, 0x24 }, L2(7),   900000 },
 	{ 0, {   540000, HFPLL, 2, 0, 0x28 }, L2(7),   925000 },
@@ -1915,6 +1915,7 @@ static void __init select_freq_plan(void)
 	} else {
 		BUG();
 	}
+  	BUG_ON(!acpu_freq_tbl);
 #ifdef CONFIG_ENABLE_MIN_KRAIT_VOLTAGE
 	if (krait_needs_vmin())
 		kraitv2_apply_vmin(acpu_freq_tbl);
