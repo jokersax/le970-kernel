@@ -194,9 +194,8 @@ SUBARCH := arm
 # Default value for CROSS_COMPILE is not to prefix executables
 # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
 export KBUILD_BUILDHOST := $(SUBARCH)
-ARCH		?= arm
-CROSS_COMPILE	?= arm-eabi-
-CROSS_COMPILE	?= ../arm-eabi-4.7/bin/arm-eabi-
+ARCH		?= $(SUBARCH)
+CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
 
 # Architecture as present in compile.h
 UTS_MACHINE 	:= $(ARCH)
@@ -357,8 +356,8 @@ CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 CFLAGS_MODULE   =
 AFLAGS_MODULE   =
 LDFLAGS_MODULE  =
-CFLAGS_KERNEL	=  -march=armv7-a -mfpu=neon -ftree-vectorize
-AFLAGS_KERNEL	=  -march=armv7-a -mfpu=neon -ftree-vectorize
+CFLAGS_KERNEL	=  -mfpu=neon -ftree-vectorize
+AFLAGS_KERNEL	=  -mfpu=neon -ftree-vectorize
 CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
 
 
@@ -375,7 +374,11 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
-		   -fno-delete-null-pointer-checks
+		   -fno-delete-null-pointer-checks  \
+		   -mfpu=neon -funsafe-math-optimizations \
+		   -fpredictive-commoning -fgcse-after-reload -ftree-vectorize \
+		   -fipa-cp-clone -fsingle-precision-constant -pipe \
+		   -funswitch-loops 
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS   := -D__ASSEMBLY__

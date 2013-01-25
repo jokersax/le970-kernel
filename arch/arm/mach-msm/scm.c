@@ -29,6 +29,7 @@
 #define SCM_ERROR		-1
 #define SCM_INTERRUPTED		1
 
+
 static DEFINE_MUTEX(scm_lock);
 
 /**

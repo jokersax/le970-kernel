@@ -269,6 +269,7 @@ static void __init reserve_memory_for(struct android_pmem_platform_data *p)
 #endif /*CONFIG_ANDROID_PMEM*/
 
 static void __init reserve_pmem_memory(void)
+
 {
 #ifdef CONFIG_ANDROID_PMEM
 #ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
