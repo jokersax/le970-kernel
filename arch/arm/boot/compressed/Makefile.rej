@@ -1,16 +1,5 @@
-From c130e27bbf25e5936478b193a1c8b648bd46e8ea Mon Sep 17 00:00:00 2001
-From: motley <motley.slate@gmail.com>
-Date: Tue, 22 Jan 2013 22:02:19 -0500
-Subject: [PATCH] Changes to allow compilation with Google 4.7
-
----
- arch/arm/boot/compressed/Makefile |   22 ++++++++++++++++------
- 1 file changed, 16 insertions(+), 6 deletions(-)
-
-diff --git a/arch/arm/boot/compressed/Makefile b/arch/arm/boot/compressed/Makefile
-index bb26756..c589057 100644
---- a/arch/arm/boot/compressed/Makefile
-+++ b/arch/arm/boot/compressed/Makefile
+--- arch/arm/boot/compressed/Makefile
++++ arch/arm/boot/compressed/Makefile
 @@ -5,6 +5,7 @@
  #
  
@@ -19,7 +8,7 @@ index bb26756..c589057 100644
  
  # Ensure that MMCIF loader code appears early in the image
  # to minimise that number of bocks that have to be read in
-@@ -21,9 +22,15 @@ OBJS		+= sdhi-shmobile.o
+@@ -21,9 +22,15 @@
  OBJS		+= sdhi-sh7372.o
  endif
  
@@ -38,7 +27,7 @@ index bb26756..c589057 100644
  FONTC	= $(srctree)/drivers/video/console/font_acorn_8x8.c
  
  # string library code (-Os is enforced to keep it much smaller)
-@@ -111,10 +118,10 @@ ifeq ($(CONFIG_ARM_ATAG_DTB_COMPAT),y)
+@@ -111,10 +118,10 @@
  OBJS	+= $(libfdt_objs) atags_to_fdt.o
  endif
  
@@ -51,7 +40,7 @@ index bb26756..c589057 100644
  
  # Make sure files are removed during clean
  extra-y       += piggy.gzip piggy.lzo piggy.lzma piggy.xzkern \
-@@ -149,12 +156,14 @@ LDFLAGS_vmlinux += -X
+@@ -149,12 +156,14 @@
  LDFLAGS_vmlinux += -T
  
  # For __aeabi_uidivmod
@@ -66,7 +55,7 @@ index bb26756..c589057 100644
  ashldi3 = $(obj)/ashldi3.o
  
  $(obj)/ashldi3.S: $(srctree)/arch/$(SRCARCH)/lib/ashldi3.S
-@@ -180,7 +189,7 @@ if [ $(words $(ZRELADDR)) -gt 1 -a "$(CONFIG_AUTO_ZRELADDR)" = "" ]; then \
+@@ -180,7 +189,7 @@
  	false; \
  fi
  
@@ -75,7 +64,7 @@ index bb26756..c589057 100644
  		$(addprefix $(obj)/, $(OBJS)) $(lib1funcs) $(ashldi3) FORCE
  	@$(check_for_multiple_zreladdr)
  	$(call if_changed,ld)
-@@ -189,6 +198,7 @@ $(obj)/vmlinux: $(obj)/vmlinux.lds $(obj)/$(HEAD) $(obj)/piggy.$(suffix_y).o \
+@@ -189,6 +198,7 @@
  $(obj)/piggy.$(suffix_y): $(obj)/../Image FORCE
  	$(call if_changed,$(suffix_y))
  
@@ -83,6 +72,3 @@ index bb26756..c589057 100644
  $(obj)/piggy.$(suffix_y).o:  $(obj)/piggy.$(suffix_y) FORCE
  
  CFLAGS_font.o := -Dstatic=
--- 
-1.7.10
-
