@@ -629,7 +629,7 @@ static struct l2_level l2_freq_tbl_8064[] = {
 /* TODO: Update core voltages when data is available. */
 static struct acpu_level acpu_freq_tbl_8064_slow[] = {
 	{ 0, { STBY_KHZ, QSB,   0, 0, 0x00 }, L2(0),   975000 },
-	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(1),   975000 },
+	{ 1, {   304000, PLL_8, 0, 2, 0x00 }, L2(1),   975000 },
 	{ 0, {   432000, HFPLL, 2, 0, 0x20 }, L2(7),  1000000 },
 	{ 1, {   486000, HFPLL, 2, 0, 0x24 }, L2(7),  1000000 },
 	{ 0, {   540000, HFPLL, 2, 0, 0x28 }, L2(7),  1000000 },
@@ -654,8 +654,8 @@ static struct acpu_level acpu_freq_tbl_8064_slow[] = {
 #ifdef CONFIG_CPU_OVERCLOCK
 	{ 1, {  1620000, HFPLL, 1, 0, 0x3C }, L2(15), 1300000 },
 #ifdef CONFIG_CPU_ULTIMATE
-	{ 1, {  1728000, HFPLL, 1, 0, 0x40 }, L2(15), 1325000 },
-	{ 1, {  1836000, HFPLL, 1, 0, 0x44 }, L2(15), 1350000 },
+	{ 1, {  1728000, HFPLL, 1, 0, 0x40 }, L2(15), 1300000 },
+	{ 1, {  1836000, HFPLL, 1, 0, 0x44 }, L2(15), 1300000 },
 #endif
 #endif
 	{ 0, { 0 } }
@@ -723,7 +723,7 @@ static struct acpu_level acpu_freq_tbl_8064_factory_fast[] = {
 #endif
 static struct acpu_level acpu_freq_tbl_8064_nom[] = {
 	{ 0, { STBY_KHZ, QSB,   0, 0, 0x00 }, L2(0),   925000 },
-	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(1),   925000 },
+	{ 1, {   304000, PLL_8, 0, 2, 0x00 }, L2(1),   925000 },
 	{ 0, {   432000, HFPLL, 2, 0, 0x20 }, L2(7),   950000 },
 	{ 1, {   486000, HFPLL, 2, 0, 0x24 }, L2(7),   950000 },
 	{ 0, {   540000, HFPLL, 2, 0, 0x28 }, L2(7),   975000 },
@@ -755,8 +755,8 @@ static struct acpu_level acpu_freq_tbl_8064_nom[] = {
 	{ 1, {  1512000, HFPLL, 1, 0, 0x38 }, L2(15), 1200000 },
 	{ 1, {  1620000, HFPLL, 1, 0, 0x3C }, L2(15), 1250000 },
 #ifdef CONFIG_CPU_ULTIMATE
-	{ 1, {  1728000, HFPLL, 1, 0, 0x40 }, L2(15), 1300000 },
-	{ 1, {  1836000, HFPLL, 1, 0, 0x44 }, L2(15), 1350000 },
+	{ 1, {  1728000, HFPLL, 1, 0, 0x40 }, L2(15), 1250000 },
+	{ 1, {  1836000, HFPLL, 1, 0, 0x44 }, L2(15), 1300000 },
 #endif
 #endif
 	{ 0, { 0 } }
@@ -764,7 +764,7 @@ static struct acpu_level acpu_freq_tbl_8064_nom[] = {
 
 static struct acpu_level acpu_freq_tbl_8064_fast[] = {
 	{ 0, { STBY_KHZ, QSB,   0, 0, 0x00 }, L2(0),   875000 },
-	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(1),   875000 },
+	{ 1, {   304000, PLL_8, 0, 2, 0x00 }, L2(1),   875000 },
 	{ 0, {   432000, HFPLL, 2, 0, 0x20 }, L2(7),   900000 },
 	{ 1, {   486000, HFPLL, 2, 0, 0x24 }, L2(7),   900000 },
 	{ 0, {   540000, HFPLL, 2, 0, 0x28 }, L2(7),   925000 },
@@ -796,8 +796,8 @@ static struct acpu_level acpu_freq_tbl_8064_fast[] = {
 	{ 1, {  1512000, HFPLL, 1, 0, 0x38 }, L2(15), 1150000 },
 	{ 1, {  1620000, HFPLL, 1, 0, 0x3C }, L2(15), 1200000 },
 #ifdef CONFIG_CPU_ULTIMATE
-	{ 1, {  1728000, HFPLL, 1, 0, 0x40 }, L2(16), 1250000 },
-	{ 1, {  1836000, HFPLL, 1, 0, 0x44 }, L2(16), 1300000 },
+	{ 1, {  1728000, HFPLL, 1, 0, 0x40 }, L2(15), 1250000 },
+	{ 1, {  1836000, HFPLL, 1, 0, 0x44 }, L2(15), 1300000 },
 #endif
 #endif
 	{ 0, { 0 } }

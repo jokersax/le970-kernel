@@ -375,10 +375,7 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
 		   -fno-delete-null-pointer-checks  \
-		   -mfpu=neon -funsafe-math-optimizations \
-		   -fpredictive-commoning -fgcse-after-reload -ftree-vectorize \
-		   -fipa-cp-clone -fsingle-precision-constant -pipe \
-		   -funswitch-loops 
+		   -mfpu=neon -funsafe-math-optimizations
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS   := -D__ASSEMBLY__
