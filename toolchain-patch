@@ -1,88 +1,48 @@
-From c130e27bbf25e5936478b193a1c8b648bd46e8ea Mon Sep 17 00:00:00 2001
+From 37dca3955331320297bd29ef6daea0abc4ff4aa6 Mon Sep 17 00:00:00 2001
 From: motley <motley.slate@gmail.com>
-Date: Tue, 22 Jan 2013 22:02:19 -0500
-Subject: [PATCH] Changes to allow compilation with Google 4.7
+Date: Sun, 27 Jan 2013 23:35:30 -0500
+Subject: [PATCH] LG Mako generic gamma control - add a couple checks before
+ trying to store the values.
 
+-Only allow gamma amp 0 and 1 values up to 31.
+-Since we are pushing to a char data type, make sure nothing is over
+255.
 ---
- arch/arm/boot/compressed/Makefile |   22 ++++++++++++++++------
- 1 file changed, 16 insertions(+), 6 deletions(-)
+ drivers/video/msm/mipi_lgit.c |   16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
 
-diff --git a/arch/arm/boot/compressed/Makefile b/arch/arm/boot/compressed/Makefile
-index bb26756..c589057 100644
---- a/arch/arm/boot/compressed/Makefile
-+++ b/arch/arm/boot/compressed/Makefile
-@@ -5,6 +5,7 @@
- #
+diff --git a/drivers/video/msm/mipi_lgit.c b/drivers/video/msm/mipi_lgit.c
+index 1b68747..bdb7215 100644
+--- a/drivers/video/msm/mipi_lgit.c
++++ b/drivers/video/msm/mipi_lgit.c
+@@ -353,12 +353,26 @@ static ssize_t kgamma_ctrl_show(struct device *dev,
+ /******************* end faux123 sysfs interface *******************/
  
- OBJS		=
-+plus_sec := $(call as-instr,.arch_extension sec,+sec)
- 
- # Ensure that MMCIF loader code appears early in the image
- # to minimise that number of bocks that have to be read in
-@@ -21,9 +22,15 @@ OBJS		+= sdhi-shmobile.o
- OBJS		+= sdhi-sh7372.o
- endif
- 
--AFLAGS_head.o += -DTEXT_OFFSET=$(TEXT_OFFSET)
--HEAD	= head.o
--OBJS	+= misc.o decompress.o
-+AFLAGS_head.o := -DTEXT_OFFSET=$(TEXT_OFFSET)
-+AFLAGS_head.o += -Wa,-march=armv7-a$(plus_sec)
-+HEAD = head.o
+ /******************* motley generic sysfs interface ********************/
 +
-+AFLAGS_misc.o +=-Wa,-march=armv7-a$(plus_sec)
-+MISC = misc.o
-+AFLAGS_decompress.o += -Wa,-march=armv7-a$(plus_sec)
-+DECOMPRESS = decompress.o
++/** check for for reasonable values and ones that are too large for the
++ * destination char data type
++ * */
+ static bool calc_checksum_generic(unsigned int intArr[]) {
+ 	int i = 0;
+ 	unsigned int chksum = 0;
+ 
+-	for (i=1; i<10; i++)
++	if (intArr[5] > 31 || (intArr[6] > 31)) {
++		pr_info("gamma 0 and gamma 1 values can't be over 31, got %d %d instead!", intArr[5], intArr[6]);
++		return false;
++	}
 +
- FONTC	= $(srctree)/drivers/video/console/font_acorn_8x8.c
++	for (i=1; i<10; i++) {
++		if (intArr[i] > 255) {
++			pr_info("char values  can't be over 255, got %d instead!", intArr[i]);
++			return false;
++		}
+ 		chksum += intArr[i];
++	}
  
- # string library code (-Os is enforced to keep it much smaller)
-@@ -111,10 +118,10 @@ ifeq ($(CONFIG_ARM_ATAG_DTB_COMPAT),y)
- OBJS	+= $(libfdt_objs) atags_to_fdt.o
- endif
- 
--targets       := vmlinux vmlinux.lds \
-+targets := vmlinux vmlinux.lds \
- 		 piggy.$(suffix_y) piggy.$(suffix_y).o \
- 		 lib1funcs.o lib1funcs.S ashldi3.o ashldi3.S \
--		 font.o font.c head.o misc.o $(OBJS)
-+		 font.o font.c head.o misc.o decompress.o $(OBJS)
- 
- # Make sure files are removed during clean
- extra-y       += piggy.gzip piggy.lzo piggy.lzma piggy.xzkern \
-@@ -149,12 +156,14 @@ LDFLAGS_vmlinux += -X
- LDFLAGS_vmlinux += -T
- 
- # For __aeabi_uidivmod
-+AFLAGS_lib1funcs.o +=-Wa,-march=armv7-a$(plus_sec)
- lib1funcs = $(obj)/lib1funcs.o
- 
- $(obj)/lib1funcs.S: $(srctree)/arch/$(SRCARCH)/lib/lib1funcs.S
- 	$(call cmd,shipped)
- 
- # For __aeabi_llsl
-+AFLAGS_ashldi3.o +=-Wa,-march=armv7-a$(plus_sec)
- ashldi3 = $(obj)/ashldi3.o
- 
- $(obj)/ashldi3.S: $(srctree)/arch/$(SRCARCH)/lib/ashldi3.S
-@@ -180,7 +189,7 @@ if [ $(words $(ZRELADDR)) -gt 1 -a "$(CONFIG_AUTO_ZRELADDR)" = "" ]; then \
- 	false; \
- fi
- 
--$(obj)/vmlinux: $(obj)/vmlinux.lds $(obj)/$(HEAD) $(obj)/piggy.$(suffix_y).o \
-+$(obj)/vmlinux: $(obj)/vmlinux.lds $(obj)/$(HEAD) $(obj)/$(MISC) $(obj)/$(DECOMPRESS) $(obj)/piggy.$(suffix_y).o \
- 		$(addprefix $(obj)/, $(OBJS)) $(lib1funcs) $(ashldi3) FORCE
- 	@$(check_for_multiple_zreladdr)
- 	$(call if_changed,ld)
-@@ -189,6 +198,7 @@ $(obj)/vmlinux: $(obj)/vmlinux.lds $(obj)/$(HEAD) $(obj)/piggy.$(suffix_y).o \
- $(obj)/piggy.$(suffix_y): $(obj)/../Image FORCE
- 	$(call if_changed,$(suffix_y))
- 
-+AFLAGS_piggy.$(suffix_y).o += -Wa,-march=armv7-a$(plus_sec)
- $(obj)/piggy.$(suffix_y).o:  $(obj)/piggy.$(suffix_y) FORCE
- 
- CFLAGS_font.o := -Dstatic=
+ 	if (chksum == intArr[0]) {
+ 		return true;
 -- 
 1.7.10
 
