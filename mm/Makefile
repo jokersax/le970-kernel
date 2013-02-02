@@ -2,6 +2,10 @@
 # Makefile for the linux memory manager.
 #
 
+ifdef CONFIG_CC_OPTIMIZE_ALOT
+CFLAGS_workqueue.o += -O2
+endif
+
 mmu-y			:= nommu.o
 mmu-$(CONFIG_MMU)	:= fremap.o highmem.o madvise.o memory.o mincore.o \
 			   mlock.o mmap.o mprotect.o mremap.o msync.o rmap.o \

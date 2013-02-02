@@ -1,0 +1,13 @@
+--- drivers/input/touchscreen/Kconfig
++++ drivers/input/touchscreen/Kconfig
+@@ -965,5 +965,10 @@
+ 	default y
+ 	help
+ 	  Synaptics Register map TM2000.
++
++config TOUCHSCREEN_SWEEP2WAKE
++        tristate "Sweep2Wake for touchscreens"
++        default n
++
+ endif
+ 

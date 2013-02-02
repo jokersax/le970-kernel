@@ -184,6 +184,25 @@ int get_touch_ts_fw_version(char *fw_ver)
 EXPORT_SYMBOL(get_touch_ts_fw_version);
 
 
+#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
+/* gives back true if only one touch is recognized */
+bool is_single_touch(struct lge_touch_data *ts)
+{
+        int i = 0, cnt = 0;
+
+        for( i = 0; i < ts->pdata->caps->max_id; i++ ) {
+                if ((!ts->ts_data.curr_data[i].state) ||
+                    (ts->ts_data.curr_data[i].state == ABS_RELEASE))
+                        continue;
+                else cnt++;
+        }
+        if (cnt == 1)
+                return true;
+        else
+                return false;
+}
+#endif
+
 /* set_touch_handle / get_touch_handle
  *
  * Developer can save their object using 'set_touch_handle'.
@@ -3697,6 +3716,10 @@ static void touch_early_suspend(struct early_suspend *h)
 	struct lge_touch_data *ts =
 			container_of(h, struct lge_touch_data, early_suspend);
 
+#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
+        scr_suspended = true;
+#endif
+
 	if (unlikely(touch_debug_mask & DEBUG_TRACE))
 		TOUCH_DEBUG_MSG("\n");
 
@@ -3732,6 +3755,10 @@ static void touch_late_resume(struct early_suspend *h)
 {
 	struct lge_touch_data *ts =
 			container_of(h, struct lge_touch_data, early_suspend);
+
+#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
+        scr_suspended = false;
+#endif
 
 	if (unlikely(touch_debug_mask & DEBUG_TRACE))
 		TOUCH_DEBUG_MSG("\n");

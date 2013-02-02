@@ -1,48 +1,516 @@
-From 37dca3955331320297bd29ef6daea0abc4ff4aa6 Mon Sep 17 00:00:00 2001
-From: motley <motley.slate@gmail.com>
-Date: Sun, 27 Jan 2013 23:35:30 -0500
-Subject: [PATCH] LG Mako generic gamma control - add a couple checks before
- trying to store the values.
+From 2c2a33d31eec08777fb48f320dd56a596a98bd2e Mon Sep 17 00:00:00 2001
+From: Dennis Rassmann <showp1984@gmail.com>
+Date: Sat, 22 Dec 2012 11:06:57 +0100
+Subject: [PATCH] drivers/touchscreen: add sweep2wake
 
--Only allow gamma amp 0 and 1 values up to 31.
--Since we are pushing to a char data type, make sure nothing is over
-255.
+Signed-off-by: Dennis Rassmann <showp1984@gmail.com>
 ---
- drivers/video/msm/mipi_lgit.c |   16 +++++++++++++++-
- 1 file changed, 15 insertions(+), 1 deletion(-)
+ drivers/input/misc/pmic8xxx-pwrkey.c       |    9 ++
+ drivers/input/touchscreen/Kconfig          |    5 +
+ drivers/input/touchscreen/Makefile         |    3 +
+ drivers/input/touchscreen/lge_touch_core.c |  125 ++++++++++++++-----
+ drivers/input/touchscreen/sweep2wake.c     |  187 ++++++++++++++++++++++++++++
+ include/linux/input/sweep2wake.h           |   41 ++++++
+ 6 files changed, 342 insertions(+), 28 deletions(-)
+ create mode 100644 drivers/input/touchscreen/sweep2wake.c
+ create mode 100644 include/linux/input/sweep2wake.h
 
-diff --git a/drivers/video/msm/mipi_lgit.c b/drivers/video/msm/mipi_lgit.c
-index 1b68747..bdb7215 100644
---- a/drivers/video/msm/mipi_lgit.c
-+++ b/drivers/video/msm/mipi_lgit.c
-@@ -353,12 +353,26 @@ static ssize_t kgamma_ctrl_show(struct device *dev,
- /******************* end faux123 sysfs interface *******************/
+diff --git a/drivers/input/misc/pmic8xxx-pwrkey.c b/drivers/input/misc/pmic8xxx-pwrkey.c
+index 1b937dc..dbd7291 100644
+--- a/drivers/input/misc/pmic8xxx-pwrkey.c
++++ b/drivers/input/misc/pmic8xxx-pwrkey.c
+@@ -23,6 +23,10 @@
+ #include <linux/mfd/pm8xxx/core.h>
+ #include <linux/input/pmic8xxx-pwrkey.h>
  
- /******************* motley generic sysfs interface ********************/
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++#include <linux/input/sweep2wake.h>
++#endif
 +
-+/** check for for reasonable values and ones that are too large for the
-+ * destination char data type
-+ * */
- static bool calc_checksum_generic(unsigned int intArr[]) {
- 	int i = 0;
- 	unsigned int chksum = 0;
+ #define PON_CNTL_1 0x1C
+ #define PON_CNTL_PULL_UP BIT(7)
+ #define PON_CNTL_TRIG_DELAY_MASK (0x7)
+@@ -194,6 +198,11 @@ static int __devinit pmic8xxx_pwrkey_probe(struct platform_device *pdev)
+ 		input_sync(pwrkey->pwr);
+ 	}
  
--	for (i=1; i<10; i++)
-+	if (intArr[5] > 31 || (intArr[6] > 31)) {
-+		pr_info("gamma 0 and gamma 1 values can't be over 31, got %d %d instead!", intArr[5], intArr[6]);
-+		return false;
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++	sweep2wake_setdev(pwr);
++	printk(KERN_INFO "[sweep2wake]: set device %s\n", pwr->name);
++#endif
++
+ 	err = request_any_context_irq(key_press_irq, pwrkey_press_irq,
+ 		IRQF_TRIGGER_RISING, "pmic8xxx_pwrkey_press", pwrkey);
+ 	if (err < 0) {
+diff --git a/drivers/input/touchscreen/Kconfig b/drivers/input/touchscreen/Kconfig
+index bc51a2a..877c57e 100644
+--- a/drivers/input/touchscreen/Kconfig
++++ b/drivers/input/touchscreen/Kconfig
+@@ -965,5 +965,10 @@ config TOUCH_REG_MAP_TM2000
+ 	default y
+ 	help
+ 	  Synaptics Register map TM2000.
++
++config TOUCHSCREEN_SWEEP2WAKE
++        tristate "Sweep2Wake for touchscreens"
++        default n
++
+ endif
+ 
+diff --git a/drivers/input/touchscreen/Makefile b/drivers/input/touchscreen/Makefile
+index abb9aa2..91c846c 100644
+--- a/drivers/input/touchscreen/Makefile
++++ b/drivers/input/touchscreen/Makefile
+@@ -6,6 +6,9 @@
+ 
+ wm97xx-ts-y := wm97xx-core.o
+ 
++# for sweep2wake
++obj-$(CONFIG_TOUCHSCREEN_SWEEP2WAKE)	+= sweep2wake.o
++
+ obj-$(CONFIG_TOUCHSCREEN_88PM860X)	+= 88pm860x-ts.o
+ obj-$(CONFIG_TOUCHSCREEN_AD7877)	+= ad7877.o
+ obj-$(CONFIG_TOUCHSCREEN_AD7879)	+= ad7879.o
+diff --git a/drivers/input/touchscreen/lge_touch_core.c b/drivers/input/touchscreen/lge_touch_core.c
+index 8121bc8..d93c5e0 100644
+--- a/drivers/input/touchscreen/lge_touch_core.c
++++ b/drivers/input/touchscreen/lge_touch_core.c
+@@ -35,6 +35,10 @@
+ 
+ #include <linux/input/lge_touch_core.h>
+ 
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++#include <linux/input/sweep2wake.h>
++#endif
++
+ struct touch_device_driver*     touch_device_func;
+ struct workqueue_struct*        touch_wq;
+ 
+@@ -89,6 +93,25 @@ struct pointer_trace {
+ static void touch_late_resume(struct early_suspend *h);
+ #endif
+ 
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++/* gives back true if only one touch is recognized */
++bool is_single_touch(struct lge_touch_data *ts)
++{
++        int i = 0, cnt = 0;
++
++        for( i = 0; i < ts->pdata->caps->max_id; i++ ) {
++                if ((!ts->ts_data.curr_data[i].state) ||
++                    (ts->ts_data.curr_data[i].state == ABS_RELEASE))
++                        continue;
++                else cnt++;
++        }
++        if (cnt == 1)
++                return true;
++        else
++                return false;
++}
++#endif
++
+ /* set_touch_handle / get_touch_handle
+  *
+  * Developer can save their object using 'set_touch_handle'.
+@@ -768,6 +791,11 @@ static void touch_input_report(struct lge_touch_data *ts)
+ 				input_report_abs(ts->input_dev,
+ 					ABS_MT_TOUCH_MINOR,
+ 					ts->ts_data.curr_data[id].width_minor);
++
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++                        detect_sweep2wake(ts->ts_data.curr_data[id].x_position, ts->ts_data.curr_data[id].y_position, ts);
++#endif
++
+ #ifdef LGE_TOUCH_POINT_DEBUG
+ 			if (id == 0 && tr_last_index < MAX_TRACE) {
+ 				tr_data[tr_last_index].x = ts->ts_data.curr_data[id].x_position;
+@@ -778,6 +806,14 @@ static void touch_input_report(struct lge_touch_data *ts)
+ 		}
+ 		else {
+ 			ts->ts_data.curr_data[id].state = 0;
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++                        if (s2w_switch > 0) {
++                                exec_count = true;
++                                barrier[0] = false;
++                                barrier[1] = false;
++                                scr_on_touch = false;
++                        }
++#endif
+ #ifdef LGE_TOUCH_POINT_DEBUG
+ 			dump_pointer_trace();
+ #endif
+@@ -939,7 +975,10 @@ static void touch_fw_upgrade_func(struct work_struct *work_fw_upgrade)
+ #endif
+ 
+ 	if (!ts->curr_resume_state) {
+-		touch_power_cntl(ts, POWER_OFF);
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++                if (s2w_switch == 0)
++#endif
++                        touch_power_cntl(ts, POWER_OFF);
+ 	}
+ 	else {
+ 		if (ts->pdata->role->operation_mode == INTERRUPT_MODE)
+@@ -1817,7 +1856,11 @@ static int touch_probe(struct i2c_client *client,
+ 
+ 		ret = request_threaded_irq(client->irq, touch_irq_handler,
+ 				NULL,
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++				ts->pdata->role->irqflags | IRQF_ONESHOT | IRQF_TRIGGER_LOW | IRQF_NO_SUSPEND,
++#else
+ 				ts->pdata->role->irqflags | IRQF_ONESHOT,
++#endif
+ 				client->name, ts);
+ 
+ 		if (ret < 0) {
+@@ -1954,6 +1997,10 @@ static void touch_early_suspend(struct early_suspend *h)
+ 	struct lge_touch_data *ts =
+ 			container_of(h, struct lge_touch_data, early_suspend);
+ 
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++        scr_suspended = true;
++#endif
++
+ 	if (unlikely(touch_debug_mask & DEBUG_TRACE))
+ 		TOUCH_DEBUG_MSG("\n");
+ 
+@@ -1964,19 +2011,28 @@ static void touch_early_suspend(struct early_suspend *h)
+ 		return;
+ 	}
+ 
+-	if (ts->pdata->role->operation_mode == INTERRUPT_MODE)
+-		disable_irq(ts->client->irq);
+-	else
+-		hrtimer_cancel(&ts->timer);
+-
+-	cancel_work_sync(&ts->work);
+-	cancel_delayed_work_sync(&ts->work_init);
+-	if (ts->pdata->role->key_type == TOUCH_HARD_KEY)
+-		cancel_delayed_work_sync(&ts->work_touch_lock);
+-
+-	release_all_ts_event(ts);
+-
+-	touch_power_cntl(ts, ts->pdata->role->suspend_pwr);
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++        if (s2w_switch == 0)
++#endif
++        {
++	        if (ts->pdata->role->operation_mode == INTERRUPT_MODE)
++		                disable_irq(ts->client->irq);
++	        else
++		        hrtimer_cancel(&ts->timer);
++
++	        cancel_work_sync(&ts->work);
++	        cancel_delayed_work_sync(&ts->work_init);
++	        if (ts->pdata->role->key_type == TOUCH_HARD_KEY)
++		        cancel_delayed_work_sync(&ts->work_touch_lock);
++
++	        release_all_ts_event(ts);
++
++	        touch_power_cntl(ts, ts->pdata->role->suspend_pwr);
++        }
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++        else if (s2w_switch > 0)
++                enable_irq_wake(ts->client->irq);
++#endif
+ }
+ 
+ static void touch_late_resume(struct early_suspend *h)
+@@ -1984,6 +2040,10 @@ static void touch_late_resume(struct early_suspend *h)
+ 	struct lge_touch_data *ts =
+ 			container_of(h, struct lge_touch_data, early_suspend);
+ 
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++        scr_suspended = false;
++#endif
++
+ 	if (unlikely(touch_debug_mask & DEBUG_TRACE))
+ 		TOUCH_DEBUG_MSG("\n");
+ 
+@@ -1994,20 +2054,29 @@ static void touch_late_resume(struct early_suspend *h)
+ 		return;
+ 	}
+ 
+-	touch_power_cntl(ts, ts->pdata->role->resume_pwr);
+-
+-	if (ts->pdata->role->operation_mode == INTERRUPT_MODE)
+-		enable_irq(ts->client->irq);
+-	else
+-		hrtimer_start(&ts->timer,
+-			ktime_set(0, ts->pdata->role->report_period),
+-					HRTIMER_MODE_REL);
+-
+-	if (ts->pdata->role->resume_pwr == POWER_ON)
+-		queue_delayed_work(touch_wq, &ts->work_init,
+-			msecs_to_jiffies(ts->pdata->role->booting_delay));
+-	else
+-		queue_delayed_work(touch_wq, &ts->work_init, 0);
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++        if (s2w_switch == 0)
++#endif
++        {
++	        touch_power_cntl(ts, ts->pdata->role->resume_pwr);
++
++	        if (ts->pdata->role->operation_mode == INTERRUPT_MODE)
++		        enable_irq(ts->client->irq);
++	        else
++		        hrtimer_start(&ts->timer,
++			        ktime_set(0, ts->pdata->role->report_period),
++					        HRTIMER_MODE_REL);
++
++	        if (ts->pdata->role->resume_pwr == POWER_ON)
++		        queue_delayed_work(touch_wq, &ts->work_init,
++			        msecs_to_jiffies(ts->pdata->role->booting_delay));
++	        else
++		        queue_delayed_work(touch_wq, &ts->work_init, 0);
++        }
++#ifdef CONFIG_TOUCHSCREEN_SWEEP2WAKE
++        else if (s2w_switch > 0)
++                disable_irq_wake(ts->client->irq);
++#endif
+ }
+ #endif
+ 
+diff --git a/drivers/input/touchscreen/sweep2wake.c b/drivers/input/touchscreen/sweep2wake.c
+new file mode 100644
+index 0000000..ef4c5c5
+--- /dev/null
++++ b/drivers/input/touchscreen/sweep2wake.c
+@@ -0,0 +1,187 @@
++/*
++ * drivers/input/touchscreen/sweep2wake.c
++ *
++ *
++ * Copyright (c) 2012, Dennis Rassmann <showp1984@gmail.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along
++ * with this program; if not, write to the Free Software Foundation, Inc.,
++ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
++ */
++
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/types.h>
++#include <linux/delay.h>
++#include <linux/init.h>
++#include <linux/err.h>
++#include <linux/input/sweep2wake.h>
++
++/* Tuneables */
++#define DEBUG                   0
++#define S2W_Y_LIMIT             2350
++#define S2W_X_MAX               1540
++#define S2W_X_B1                500
++#define S2W_X_B2                1000
++#define S2W_X_FINAL             300
++#define S2W_PWRKEY_DUR          60
++
++/* external function from the ts driver */
++extern bool is_single_touch(struct lge_touch_data *ts);
++
++/* Resources */
++int s2w_switch = 1;
++bool scr_suspended = false, exec_count = true;
++bool scr_on_touch = false, barrier[2] = {false, false};
++static struct input_dev * sweep2wake_pwrdev;
++static DEFINE_MUTEX(pwrkeyworklock);
++
++#ifdef CONFIG_CMDLINE_OPTIONS
++/* Read cmdline for s2w */
++static int __init read_s2w_cmdline(char *s2w)
++{
++	if (strcmp(s2w, "1") == 0) {
++		printk(KERN_INFO "[cmdline_s2w]: Sweep2Wake enabled. | s2w='%s'", s2w);
++		s2w_switch = 1;
++	} else if (strcmp(s2w, "0") == 0) {
++		printk(KERN_INFO "[cmdline_s2w]: Sweep2Wake disabled. | s2w='%s'", s2w);
++		s2w_switch = 0;
++	} else {
++		printk(KERN_INFO "[cmdline_s2w]: No valid input found. Sweep2Wake disabled. | s2w='%s'", s2w);
++		s2w_switch = 0;
 +	}
++	return 1;
++}
++__setup("s2w=", read_s2w_cmdline);
++#endif
 +
-+	for (i=1; i<10; i++) {
-+		if (intArr[i] > 255) {
-+			pr_info("char values  can't be over 255, got %d instead!", intArr[i]);
-+			return false;
++/* PowerKey setter */
++void sweep2wake_setdev(struct input_dev * input_device) {
++	sweep2wake_pwrdev = input_device;
++	return;
++}
++EXPORT_SYMBOL(sweep2wake_setdev);
++
++/* PowerKey work func */
++static void sweep2wake_presspwr(struct work_struct * sweep2wake_presspwr_work) {
++	if (!mutex_trylock(&pwrkeyworklock))
++                return;
++	input_event(sweep2wake_pwrdev, EV_KEY, KEY_POWER, 1);
++	input_event(sweep2wake_pwrdev, EV_SYN, 0, 0);
++	msleep(S2W_PWRKEY_DUR);
++	input_event(sweep2wake_pwrdev, EV_KEY, KEY_POWER, 0);
++	input_event(sweep2wake_pwrdev, EV_SYN, 0, 0);
++	msleep(S2W_PWRKEY_DUR);
++        mutex_unlock(&pwrkeyworklock);
++	return;
++}
++static DECLARE_WORK(sweep2wake_presspwr_work, sweep2wake_presspwr);
++
++/* PowerKey trigger */
++void sweep2wake_pwrtrigger(void) {
++	schedule_work(&sweep2wake_presspwr_work);
++        return;
++}
++
++/* Sweep2wake main function */
++void detect_sweep2wake(int x, int y, struct lge_touch_data *ts)
++{
++        int prevx = 0, nextx = 0;
++        bool single_touch = is_single_touch(ts);
++#if DEBUG
++        pr_info("[sweep2wake]: x,y(%4d,%4d) single:%s\n",
++                x, y, (single_touch) ? "true" : "false");
++#endif
++	//left->right
++	if ((single_touch) && (scr_suspended == true) && (s2w_switch > 0)) {
++		prevx = 0;
++		nextx = S2W_X_B1;
++		if ((barrier[0] == true) ||
++		   ((x > prevx) &&
++		    (x < nextx) &&
++		    (y > 0))) {
++			prevx = nextx;
++			nextx = S2W_X_B2;
++			barrier[0] = true;
++			if ((barrier[1] == true) ||
++			   ((x > prevx) &&
++			    (x < nextx) &&
++			    (y > 0))) {
++				prevx = nextx;
++				barrier[1] = true;
++				if ((x > prevx) &&
++				    (y > 0)) {
++					if (x > (S2W_X_MAX - S2W_X_FINAL)) {
++						if (exec_count) {
++							printk(KERN_INFO "[sweep2wake]: ON");
++							sweep2wake_pwrtrigger();
++							exec_count = false;
++						}
++					}
++				}
++			}
 +		}
- 		chksum += intArr[i];
++	//right->left
++	} else if ((single_touch) && (scr_suspended == false) && (s2w_switch > 0)) {
++		scr_on_touch=true;
++		prevx = (S2W_X_MAX - S2W_X_FINAL);
++		nextx = S2W_X_B2;
++		if ((barrier[0] == true) ||
++		   ((x < prevx) &&
++		    (x > nextx) &&
++		    (y > S2W_Y_LIMIT))) {
++			prevx = nextx;
++			nextx = S2W_X_B1;
++			barrier[0] = true;
++			if ((barrier[1] == true) ||
++			   ((x < prevx) &&
++			    (x > nextx) &&
++			    (y > S2W_Y_LIMIT))) {
++				prevx = nextx;
++				barrier[1] = true;
++				if ((x < prevx) &&
++				    (y > S2W_Y_LIMIT)) {
++					if (x < S2W_X_FINAL) {
++						if (exec_count) {
++							printk(KERN_INFO "[sweep2wake]: OFF");
++							sweep2wake_pwrtrigger();
++							exec_count = false;
++						}
++					}
++				}
++			}
++		}
 +	}
- 
- 	if (chksum == intArr[0]) {
- 		return true;
++}
++
++/*
++ * INIT / EXIT stuff below here
++ */
++
++static int __init sweep2wake_init(void)
++{
++	pr_info("[sweep2wake]: %s done\n", __func__);
++	return 0;
++}
++
++static void __exit sweep2wake_exit(void)
++{
++	return;
++}
++
++module_init(sweep2wake_init);
++module_exit(sweep2wake_exit);
++
++MODULE_DESCRIPTION("Sweep2wake");
++MODULE_LICENSE("GPLv2");
++
+diff --git a/include/linux/input/sweep2wake.h b/include/linux/input/sweep2wake.h
+new file mode 100644
+index 0000000..e6bd411
+--- /dev/null
++++ b/include/linux/input/sweep2wake.h
+@@ -0,0 +1,41 @@
++/*
++ * include/linux/sweep2wake.h
++ *
++ * Copyright (c) 2012, Dennis Rassmann <showp1984@gmail.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along
++ * with this program; if not, write to the Free Software Foundation, Inc.,
++ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
++ */
++
++#ifndef _LINUX_SWEEP2WAKE_H
++#define _LINUX_SWEEP2WAKE_H
++
++#include <linux/input.h>
++#include <linux/earlysuspend.h>
++#include <linux/hrtimer.h>
++#include <linux/input/lge_touch_core.h>
++
++extern int s2w_switch;
++extern bool scr_suspended;
++extern bool scr_on_touch;
++extern bool exec_count;
++extern bool barrier[2];
++
++/* Sweep2wake main function */
++extern void detect_sweep2wake(int, int, struct lge_touch_data *ts);
++
++/* PowerKey setter */
++extern void sweep2wake_setdev(struct input_dev *);
++
++#endif	/* _LINUX_SWEEP2WAKE_H */
 -- 
 1.7.10
 
