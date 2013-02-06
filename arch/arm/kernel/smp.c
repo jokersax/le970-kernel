@@ -512,7 +512,7 @@ int local_timer_register(struct local_timer_ops *ops)
 }
 #endif
 
-int __cpuinit __attribute__ ((weak)) local_timer_setup(struct clock_event_device *clk)
+int __attribute__ ((weak)) local_timer_setup(struct clock_event_device *clk)
 {
 	if (lt_ops)
 		return lt_ops->setup(clk);
