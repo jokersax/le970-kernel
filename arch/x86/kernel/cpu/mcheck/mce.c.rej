@@ -1,0 +1,29 @@
+--- arch/x86/kernel/cpu/mcheck/mce.c
++++ arch/x86/kernel/cpu/mcheck/mce.c
+@@ -1469,7 +1469,7 @@
+ 	return 0;
+ }
+ 
+-static int __cpuinit __mcheck_cpu_ancient_init(struct cpuinfo_x86 *c)
++static int __mcheck_cpu_ancient_init(struct cpuinfo_x86 *c)
+ {
+ 	if (c->x86 != 5)
+ 		return 0;
+@@ -2094,7 +2094,7 @@
+ }
+ 
+ /* Per cpu device init. All of the cpus still share the same ctrl bank: */
+-static __cpuinit int mce_device_create(unsigned int cpu)
++static int mce_device_create(unsigned int cpu)
+ {
+ 	struct device *dev;
+ 	int err;
+@@ -2140,7 +2140,7 @@
+ 	return err;
+ }
+ 
+-static __cpuinit void mce_device_remove(unsigned int cpu)
++static void mce_device_remove(unsigned int cpu)
+ {
+ 	struct device *dev = per_cpu(mce_device, cpu);
+ 	int i;

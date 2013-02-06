@@ -1,0 +1,92 @@
+--- drivers/hwmon/coretemp.c
++++ drivers/hwmon/coretemp.c
+@@ -191,7 +191,7 @@
+ 	return tdata->valid ? sprintf(buf, "%d\n", tdata->temp) : -EAGAIN;
+ }
+ 
+-static int __cpuinit adjust_tjmax(struct cpuinfo_x86 *c, u32 id,
++static int adjust_tjmax(struct cpuinfo_x86 *c, u32 id,
+ 				  struct device *dev)
+ {
+ 	/* The 100C is default for both mobile and non mobile CPUs */
+@@ -286,7 +286,7 @@
+ 	return tjmax;
+ }
+ 
+-static int __cpuinit get_tjmax(struct cpuinfo_x86 *c, u32 id,
++static int get_tjmax(struct cpuinfo_x86 *c, u32 id,
+ 			       struct device *dev)
+ {
+ 	int err;
+@@ -336,7 +336,7 @@
+ 	return device_create_file(dev, &pdata->name_attr);
+ }
+ 
+-static int __cpuinit create_core_attrs(struct temp_data *tdata,
++static int create_core_attrs(struct temp_data *tdata,
+ 				       struct device *dev, int attr_no)
+ {
+ 	int err, i;
+@@ -370,7 +370,7 @@
+ }
+ 
+ 
+-static int __cpuinit chk_ucode_version(unsigned int cpu)
++static int chk_ucode_version(unsigned int cpu)
+ {
+ 	struct cpuinfo_x86 *c = &cpu_data(cpu);
+ 
+@@ -387,7 +387,7 @@
+ 	return 0;
+ }
+ 
+-static struct platform_device __cpuinit *coretemp_get_pdev(unsigned int cpu)
++static struct platform_device *coretemp_get_pdev(unsigned int cpu)
+ {
+ 	u16 phys_proc_id = TO_PHYS_ID(cpu);
+ 	struct pdev_entry *p;
+@@ -404,7 +404,7 @@
+ 	return NULL;
+ }
+ 
+-static struct temp_data __cpuinit *init_temp_data(unsigned int cpu,
++static struct temp_data *init_temp_data(unsigned int cpu,
+ 						  int pkg_flag)
+ {
+ 	struct temp_data *tdata;
+@@ -423,7 +423,7 @@
+ 	return tdata;
+ }
+ 
+-static int __cpuinit create_core_data(struct platform_device *pdev,
++static int create_core_data(struct platform_device *pdev,
+ 				unsigned int cpu, int pkg_flag)
+ {
+ 	struct temp_data *tdata;
+@@ -494,7 +494,7 @@
+ 	return err;
+ }
+ 
+-static void __cpuinit coretemp_add_core(unsigned int cpu, int pkg_flag)
++static void coretemp_add_core(unsigned int cpu, int pkg_flag)
+ {
+ 	struct platform_device *pdev = coretemp_get_pdev(cpu);
+ 	int err;
+@@ -623,7 +623,7 @@
+ 	return err;
+ }
+ 
+-static void __cpuinit coretemp_device_remove(unsigned int cpu)
++static void coretemp_device_remove(unsigned int cpu)
+ {
+ 	struct pdev_entry *p, *n;
+ 	u16 phys_proc_id = TO_PHYS_ID(cpu);
+@@ -639,7 +639,7 @@
+ 	mutex_unlock(&pdev_list_mutex);
+ }
+ 
+-static bool __cpuinit is_any_core_online(struct platform_data *pdata)
++static bool is_any_core_online(struct platform_data *pdata)
+ {
+ 	int i;
+ 

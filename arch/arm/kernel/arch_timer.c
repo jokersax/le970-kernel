@@ -135,7 +135,7 @@ static int arch_timer_set_next_event(unsigned long evt,
 	return 0;
 }
 
-static int __cpuinit arch_timer_setup(struct clock_event_device *clk)
+static int arch_timer_setup(struct clock_event_device *clk)
 {
 	/* setup clock event only once for CPU 0 */
 	if (!smp_processor_id() && clk->irq == arch_timer_ppi)
@@ -258,7 +258,7 @@ static void notrace arch_timer_update_sched_clock(void)
 	update_sched_clock(&cd, arch_counter_get_cntvct32(), (u32)~0);
 }
 
-static void __cpuinit arch_timer_stop(struct clock_event_device *clk)
+static void arch_timer_stop(struct clock_event_device *clk)
 {
 	pr_debug("arch_timer_teardown disable IRQ%d cpu #%d\n",
 		 clk->irq, smp_processor_id());

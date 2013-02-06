@@ -258,7 +258,7 @@ static __cpuinit void thermal_throttle_remove_dev(struct sys_device *sys_dev)
 static DEFINE_MUTEX(therm_cpu_lock);
 
 /* Get notified when a cpu comes on/off. Be hotplug friendly. */
-static __cpuinit int
+static int
 thermal_throttle_cpu_callback(struct notifier_block *nfb,
 			      unsigned long action,
 			      void *hcpu)

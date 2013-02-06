@@ -1,0 +1,20 @@
+--- arch/mips/mm/tlbex.c
++++ arch/mips/mm/tlbex.c
+@@ -261,7 +261,7 @@
+ static int pgd_reg __cpuinitdata;
+ enum vmalloc64_mode {not_refill, refill_scratch, refill_noscratch};
+ 
+-static struct work_registers __cpuinit build_get_work_registers(u32 **p)
++static struct work_registers build_get_work_registers(u32 **p)
+ {
+ 	struct work_registers r;
+ 
+@@ -317,7 +317,7 @@
+ 	return r;
+ }
+ 
+-static void __cpuinit build_restore_work_registers(u32 **p)
++static void build_restore_work_registers(u32 **p)
+ {
+ 	if (scratch_reg > 0) {
+ 		UASM_i_MFC0(p, 1, 31, scratch_reg);

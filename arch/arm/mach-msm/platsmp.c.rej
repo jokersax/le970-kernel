@@ -1,0 +1,29 @@
+--- arch/arm/mach-msm/platsmp.c
++++ arch/arm/mach-msm/platsmp.c
+@@ -44,7 +44,7 @@
+ 
+ static DEFINE_SPINLOCK(boot_lock);
+ 
+-void __cpuinit platform_secondary_init(unsigned int cpu)
++void platform_secondary_init(unsigned int cpu)
+ {
+ 	WARN_ON(msm_platform_secondary_init(cpu));
+ 
+@@ -121,7 +121,7 @@
+ 	return 0;
+ }
+ 
+-static int __cpuinit krait_release_secondary_p3(unsigned long base, int cpu)
++static int krait_release_secondary_p3(unsigned long base, int cpu)
+ {
+ 	void *base_ptr = ioremap_nocache(base + (cpu * 0x10000), SZ_4K);
+ 	if (!base_ptr)
+@@ -175,7 +175,7 @@
+ 	SCM_FLAG_COLDBOOT_CPU3,
+ };
+ 
+-int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
++int boot_secondary(unsigned int cpu, struct task_struct *idle)
+ {
+ 	int ret;
+ 	int flag = 0;

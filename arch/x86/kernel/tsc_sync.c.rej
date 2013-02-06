@@ -1,0 +1,11 @@
+--- arch/x86/kernel/tsc_sync.c
++++ arch/x86/kernel/tsc_sync.c
+@@ -42,7 +42,7 @@
+ /*
+  * TSC-warp measurement loop running on both CPUs:
+  */
+-static __cpuinit void check_tsc_warp(unsigned int timeout)
++static void check_tsc_warp(unsigned int timeout)
+ {
+ 	cycles_t start, now, prev, end;
+ 	int i;

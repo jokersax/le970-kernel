@@ -45,7 +45,7 @@ void __init smp_init_cpus(void)
 	set_smp_cross_call(gic_raise_softirq);
 }
 
-static int __cpuinit scorpion_release_secondary(void)
+static int scorpion_release_secondary(void)
 {
 	void *base_ptr = ioremap_nocache(0x00902000, SZ_4K*2);
 	if (!base_ptr)
@@ -61,7 +61,7 @@ static int __cpuinit scorpion_release_secondary(void)
 	return 0;
 }
 
-static int __cpuinit krait_release_secondary_sim(unsigned long base, int cpu)
+static int krait_release_secondary_sim(unsigned long base, int cpu)
 {
 	void *base_ptr = ioremap_nocache(base + (cpu * 0x10000), SZ_4K);
 	if (!base_ptr)
@@ -85,7 +85,7 @@ static int __cpuinit krait_release_secondary_sim(unsigned long base, int cpu)
 	return 0;
 }
 
-static int __cpuinit krait_release_secondary(unsigned long base, int cpu)
+static int krait_release_secondary(unsigned long base, int cpu)
 {
 	void *base_ptr = ioremap_nocache(base + (cpu * 0x10000), SZ_4K);
 	if (!base_ptr)
@@ -112,7 +112,7 @@ static int __cpuinit krait_release_secondary(unsigned long base, int cpu)
 	return 0;
 }
 
-static int __cpuinit release_secondary(unsigned int cpu)
+static int release_secondary(unsigned int cpu)
 {
 	BUG_ON(cpu >= get_core_count());
 

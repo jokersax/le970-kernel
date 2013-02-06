@@ -179,7 +179,7 @@ static int __cpuinit topology_cpu_callback(struct notifier_block *nfb,
 	return notifier_from_errno(rc);
 }
 
-static int __cpuinit topology_sysfs_init(void)
+static int topology_sysfs_init(void)
 {
 	int cpu;
 	int rc;
