@@ -245,7 +245,7 @@ static ctl_table kernel_root_table2[] = {
 
 /* Assume __initcall executes before all user space. Hopefully kmod
    doesn't violate that. We'll find out if it does. */
-static void __cpuinit vsyscall_set_cpu(int cpu)
+static void vsyscall_set_cpu(int cpu)
 {
 	unsigned long d;
 	unsigned long node = 0;
@@ -271,7 +271,7 @@ static void cpu_vsyscall_init(void *arg)
 	vsyscall_set_cpu(raw_smp_processor_id());
 }
 
-static int __cpuinit
+static int
 cpu_vsyscall_notifier(struct notifier_block *n, unsigned long action, void *arg)
 {
 	long cpu = (long)arg;

@@ -243,7 +243,7 @@ recalibrate:
 	return lpj;
 }
 
-void __cpuinit calibrate_delay(void)
+void calibrate_delay(void)
 {
 	unsigned long lpj;
 	static bool printed;

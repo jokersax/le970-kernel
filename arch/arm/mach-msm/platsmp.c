@@ -146,7 +146,7 @@ static int cold_boot_flags[] = {
    as well as when a CPU is coming out of shutdown induced by echo 0 >
    /sys/devices/.../cpuX.
 */
-int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
+int boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	int cnt = 0;
 	int ret;
@@ -197,7 +197,7 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 /* Initialization routine for secondary CPUs after they are brought out of
  * reset.
 */
-void __cpuinit platform_secondary_init(unsigned int cpu)
+void platform_secondary_init(unsigned int cpu)
 {
 	pr_debug("CPU%u: Booted secondary processor\n", cpu);
 

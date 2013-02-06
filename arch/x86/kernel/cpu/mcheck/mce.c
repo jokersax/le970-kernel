@@ -1363,7 +1363,7 @@ static int __mcheck_cpu_apply_quirks(struct cpuinfo_x86 *c)
 	return 0;
 }
 
-static void __cpuinit __mcheck_cpu_ancient_init(struct cpuinfo_x86 *c)
+static void __mcheck_cpu_ancient_init(struct cpuinfo_x86 *c)
 {
 	if (c->x86 != 5)
 		return;
@@ -1807,7 +1807,7 @@ static struct sysdev_class mce_sysclass = {
 
 DEFINE_PER_CPU(struct sys_device, mce_dev);
 
-__cpuinitdata
+
 void (*threshold_cpu_callback)(unsigned long action, unsigned int cpu);
 
 static inline struct mce_bank *attr_to_bank(struct sysdev_attribute *attr)
@@ -1948,7 +1948,7 @@ static struct sysdev_attribute *mce_attrs[] = {
 static cpumask_var_t mce_dev_initialized;
 
 /* Per cpu sysdev init. All of the cpus still share the same ctrl bank: */
-static __cpuinit int mce_create_device(unsigned int cpu)
+static int mce_create_device(unsigned int cpu)
 {
 	int err;
 	int i, j;
@@ -1990,7 +1990,7 @@ error:
 	return err;
 }
 
-static __cpuinit void mce_remove_device(unsigned int cpu)
+static void mce_remove_device(unsigned int cpu)
 {
 	int i;
 
@@ -2045,7 +2045,7 @@ static void mce_reenable_cpu(void *h)
 }
 
 /* Get notified when a cpu comes on/off. Be hotplug friendly. */
-static int __cpuinit
+static int
 mce_cpu_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
 {
 	unsigned int cpu = (unsigned long)hcpu;
@@ -2086,7 +2086,7 @@ mce_cpu_callback(struct notifier_block *nfb, unsigned long action, void *hcpu)
 	return NOTIFY_OK;
 }
 
-static struct notifier_block mce_cpu_notifier __cpuinitdata = {
+static struct notifier_block mce_cpu_notifier = {
 	.notifier_call = mce_cpu_callback,
 };
 

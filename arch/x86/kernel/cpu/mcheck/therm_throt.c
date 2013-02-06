@@ -222,7 +222,7 @@ static int thresh_event_valid(int event)
 
 #ifdef CONFIG_SYSFS
 /* Add/Remove thermal_throttle interface for CPU device: */
-static __cpuinit int thermal_throttle_add_dev(struct sys_device *sys_dev,
+static int thermal_throttle_add_dev(struct sys_device *sys_dev,
 				unsigned int cpu)
 {
 	int err;
@@ -249,7 +249,7 @@ static __cpuinit int thermal_throttle_add_dev(struct sys_device *sys_dev,
 	return err;
 }
 
-static __cpuinit void thermal_throttle_remove_dev(struct sys_device *sys_dev)
+static void thermal_throttle_remove_dev(struct sys_device *sys_dev)
 {
 	sysfs_remove_group(&sys_dev->kobj, &thermal_attr_group);
 }
@@ -289,7 +289,7 @@ thermal_throttle_cpu_callback(struct notifier_block *nfb,
 	return notifier_from_errno(err);
 }
 
-static struct notifier_block thermal_throttle_cpu_notifier __cpuinitdata =
+static struct notifier_block thermal_throttle_cpu_notifier =
 {
 	.notifier_call = thermal_throttle_cpu_callback,
 };

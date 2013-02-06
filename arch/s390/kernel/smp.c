@@ -450,7 +450,7 @@ out:
 /*
  *	Activate a secondary processor.
  */
-int __cpuinit start_secondary(void *cpuvoid)
+int start_secondary(void *cpuvoid)
 {
 	/* Setup the cpu */
 	cpu_init();
@@ -491,7 +491,7 @@ static void smp_fork_idle(struct work_struct *work)
 	complete(&c_idle->done);
 }
 
-static int __cpuinit smp_alloc_lowcore(int cpu)
+static int smp_alloc_lowcore(int cpu)
 {
 	unsigned long async_stack, panic_stack;
 	struct _lowcore *lowcore;
@@ -974,7 +974,7 @@ static int smp_cpu_notify(struct notifier_block *self,
 	return notifier_from_errno(err);
 }
 
-static struct notifier_block __cpuinitdata smp_cpu_nb = {
+static struct notifier_block smp_cpu_nb = {
 	.notifier_call = smp_cpu_notify,
 };
 
