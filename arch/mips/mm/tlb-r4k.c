@@ -413,7 +413,7 @@ out:
 	return ret;
 }
 
-static int __cpuinitdata ntlb;
+static int ntlb;
 static int __init set_ntlb(char *str)
 {
 	get_option(&str, &ntlb);

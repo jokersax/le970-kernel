@@ -468,7 +468,7 @@ static void init_centaur(struct cpuinfo_x86 *c)
 #endif
 }
 
-static unsigned int __cpuinit
+static unsigned int
 centaur_size_cache(struct cpuinfo_x86 *c, unsigned int size)
 {
 #ifdef CONFIG_X86_32
@@ -488,7 +488,7 @@ centaur_size_cache(struct cpuinfo_x86 *c, unsigned int size)
 	return size;
 }
 
-static const struct cpu_dev __cpuinitconst centaur_cpu_dev = {
+static const struct cpu_dev centaur_cpu_dev = {
 	.c_vendor	= "Centaur",
 	.c_ident	= { "CentaurHauls" },
 	.c_early_init	= early_init_centaur,
